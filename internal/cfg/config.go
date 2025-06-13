@@ -1,7 +1,6 @@
 package cfg
 
 import (
-	"flag"
 	"log"
 	"os"
 
@@ -27,12 +26,7 @@ type DHTConfig struct {
 
 // initCfg initializes the configuration from the YAML file
 func InitCfg() Config {
-	// Parse the --cfg flag
-	cfgFile := flag.String("cfg", "cfg.yaml", "Path to the configuration YAML file")
-	flag.Parse()
-
-	// Read the YAML file
-	file, err := os.Open(*cfgFile)
+	file, err := os.Open("cfg.yaml")
 
 	if err != nil {
 		log.Fatalf("Failed to open configuration file: %v", err)

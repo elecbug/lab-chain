@@ -32,4 +32,12 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to create GossipSub: %v", err)
 	}
+
+	log.Println("Libp2p host, DHT, and GossipSub initialized successfully")
+
+	for _, addr := range h.Addrs() {
+		log.Printf("Libp2p host listening on: %s", addr)
+	}
+
+	select {}
 }
