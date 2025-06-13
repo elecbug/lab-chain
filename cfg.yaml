@@ -1,0 +1,10 @@
+log_level: "info"
+network:
+  ip_address: "127.0.0.1"
+  port: 8080
+  max_peers: 50
+dht:
+  mode: "server"
+  bootstrap_peers:
+    - "peer1.example.com:1234"
+    - "peer2.example.com:5678"
