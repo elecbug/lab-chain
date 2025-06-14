@@ -14,6 +14,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/peer"
 	rcmgr "github.com/libp2p/go-libp2p/p2p/host/resource-manager"
 	"github.com/libp2p/go-libp2p/p2p/muxer/yamux"
+	"github.com/libp2p/go-libp2p/p2p/protocol/identify"
 	"github.com/libp2p/go-libp2p/p2p/security/noise"
 	"github.com/libp2p/go-libp2p/p2p/transport/tcp"
 	"github.com/multiformats/go-multiaddr"
@@ -31,6 +32,8 @@ func SetLibp2pHost(cfg cfg.Config) (host.Host, error) {
 		libp2p.Transport(tcp.NewTCPTransport),
 		libp2p.ResourceManager(rm),
 	)
+
+	identify.NewIDService(h)
 
 	if err != nil {
 		return nil, err

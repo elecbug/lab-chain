@@ -1,4 +1,4 @@
-log_level: "info"
+log_level: "debug"
 mode: "boot" # full, light, boot
 network:
   ip_address: "0.0.0.0"

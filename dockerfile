@@ -19,5 +19,6 @@ WORKDIR /app
 
 COPY --from=builder /app/app.out .
 VOLUME config config
+VOLUME data data
 
 ENTRYPOINT ["/bin/bash", "-c", "./app.out --cfg $CONFIG_PATH"]

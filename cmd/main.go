@@ -6,6 +6,7 @@ import (
 
 	"github.com/elecbug/lab-chain/internal/cfg"
 	"github.com/elecbug/lab-chain/internal/libp2p"
+	"github.com/elecbug/lab-chain/internal/logging"
 )
 
 func main() {
@@ -28,7 +29,6 @@ func main() {
 		cfg.Mode = "light"
 		initGeneralNode(ctx, cfg)
 	}
-
 }
 
 func initGeneralNode(ctx context.Context, cfg cfg.Config) {
@@ -64,6 +64,10 @@ func initGeneralNode(ctx context.Context, cfg cfg.Config) {
 		log.Printf("%s/p2p/%s", addr, h.ID())
 	}
 
+	logging.InitLogging(h, cfg)
+
+	log.Println("Logging initialized with level:", cfg.LogLevel)
+
 	select {}
 }
 
@@ -93,6 +97,10 @@ func initBootNode(ctx context.Context, cfg cfg.Config) {
 	for _, addr := range h.Addrs() {
 		log.Printf("- %s/p2p/%s", addr, h.ID())
 	}
+
+	logging.InitLogging(h, cfg)
+
+	log.Println("Logging initialized with level:", cfg.LogLevel)
 
 	select {}
 }
