@@ -59,8 +59,9 @@ func initGeneralNode(ctx context.Context, cfg cfg.Config) {
 
 	log.Println("Libp2p host, DHT, and GossipSub initialized successfully")
 
+	log.Println("Libp2p host listening on:")
 	for _, addr := range h.Addrs() {
-		log.Printf("Libp2p host listening on: %s", addr)
+		log.Printf("%s/p2p/%s", addr, h.ID())
 	}
 
 	select {}
@@ -88,8 +89,9 @@ func initBootNode(ctx context.Context, cfg cfg.Config) {
 
 	log.Println("Libp2p host, DHT, and GossipSub initialized successfully")
 
+	log.Printf("Libp2p host listening on:")
 	for _, addr := range h.Addrs() {
-		log.Printf("Libp2p host listening on: %s", addr)
+		log.Printf("- %s/p2p/%s", addr, h.ID())
 	}
 
 	select {}

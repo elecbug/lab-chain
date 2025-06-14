@@ -6,5 +6,4 @@ network:
 dht:
   mode: "server"
   bootstrap_peers:
-    - "peer1.example.com:1234"
-    - "peer2.example.com:5678"
+    - "/ip4/172.20.0.2/tcp/12000/p2p/12D3KooWAbtZffUn65pZwNWdnmabsCjhqtrKhTwemWt2QKnqShuA"
