@@ -1,7 +1,7 @@
 log_level: "info"
+mode: "full" # full, light, boot
 network:
-  ip_address: "127.0.0.1"
-  port: 8080
+  ip_address: "0.0.0.0"
   max_peers: 50
 dht:
   mode: "server"

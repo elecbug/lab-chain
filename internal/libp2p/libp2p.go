@@ -25,7 +25,7 @@ func SetLibp2pHost(cfg cfg.Config) (host.Host, error) {
 	rm, err := getResourceManager(cfg)
 
 	h, err := libp2p.New(
-		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/%s/tcp/%d", cfg.Network.IPAddress, cfg.Network.Port)),
+		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/%s/tcp/%d", cfg.Network.IPAddress, 12000)),
 		libp2p.Security(noise.ID, noise.New),
 		libp2p.Muxer(yamux.ID, yamux.DefaultTransport),
 		libp2p.Transport(tcp.NewTCPTransport),
@@ -96,8 +96,10 @@ func SetKadDHT(ctx context.Context, h host.Host, cfg cfg.Config) (*kaddht.IpfsDH
 		}
 	}
 
-	if err := dht.Bootstrap(ctx); err != nil {
-		return nil, err
+	if len(cfg.DHT.BootstrapPeers) > 0 {
+		if err := dht.Bootstrap(ctx); err != nil {
+			return nil, err
+		}
 	}
 
 	return dht, nil

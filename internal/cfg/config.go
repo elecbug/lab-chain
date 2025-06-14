@@ -9,13 +9,13 @@ import (
 
 type Config struct {
 	LogLevel string        `yaml:"log_level"`
+	Mode     string        `yaml:"mode"` // e.g., "full", "light", "boot"
 	Network  NetworkConfig `yaml:"network"`
 	DHT      DHTConfig     `yaml:"dht"`
 }
 
 type NetworkConfig struct {
 	IPAddress string `yaml:"ip_address"`
-	Port      int    `yaml:"port"`
 	MaxPeers  int    `yaml:"max_peers"` // Maximum number of peers to connect to
 }
 
