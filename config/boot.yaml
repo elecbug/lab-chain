@@ -1,0 +1,8 @@
+log_level: "debug"
+mode: "boot" # full, light, boot
+network:
+  ip_address: "0.0.0.0"
+  max_peers: 50
+dht:
+  mode: "server"
+  bootstrap_peers:

@@ -1,6 +1,7 @@
 package cfg
 
 import (
+	"flag"
 	"log"
 	"os"
 
@@ -9,13 +10,13 @@ import (
 
 type Config struct {
 	LogLevel string        `yaml:"log_level"`
+	Mode     string        `yaml:"mode"` // e.g., "full", "light", "boot"
 	Network  NetworkConfig `yaml:"network"`
 	DHT      DHTConfig     `yaml:"dht"`
 }
 
 type NetworkConfig struct {
 	IPAddress string `yaml:"ip_address"`
-	Port      int    `yaml:"port"`
 	MaxPeers  int    `yaml:"max_peers"` // Maximum number of peers to connect to
 }
 
@@ -26,7 +27,10 @@ type DHTConfig struct {
 
 // initCfg initializes the configuration from the YAML file
 func InitCfg() Config {
-	file, err := os.Open("cfg.yaml")
+	cfg := flag.String("cfg", "cfg.yaml", "Path to the configuration file")
+	flag.Parse()
+
+	file, err := os.Open(*cfg)
 
 	if err != nil {
 		log.Fatalf("Failed to open configuration file: %v", err)

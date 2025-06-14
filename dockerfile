@@ -9,14 +9,16 @@ COPY . .
 RUN go build -o app.out ./cmd
 
 FROM ubuntu:latest
+ENV CONFIG_PATH=/app/config
 
-RUN apt-get update && apt-get install -y iproute2 net-tools && rm -rf /var/lib/apt/lists/*
+RUN apt-get update
+RUN apt-get install -y iproute2 net-tools
+RUN rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 COPY --from=builder /app/app.out .
-COPY cfg.yaml .
-COPY entrypoint.sh .
+VOLUME config config
+VOLUME data data
 
-
-ENTRYPOINT ["./app.out"]
+ENTRYPOINT ["/bin/bash", "-c", "./app.out --cfg $CONFIG_PATH"]
