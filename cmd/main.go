@@ -16,11 +16,14 @@ func main() {
 
 	// Initialize configuration from the YAML file
 	cfg, priv, err := cfg.InitSetting()
-	ctx := context.Background()
 
 	if err != nil {
-		log.Fatalw("failed to initialize configuration: %v", err)
+		log.Fatalw("failed to initialize setting: %v", err)
+	} else {
+		log.Infof("setting initialized successfully")
 	}
+
+	ctx := context.Background()
 
 	switch cfg.Mode {
 	case "full":

@@ -90,7 +90,7 @@ func (t *GossipsubTracer) Trace(evt *pb.TraceEvent) {
 
 		meta, _ := json.Marshal(evt.Meta)
 
-		log.Infow(innerType, "to", peerID, "meta", string(meta))
+		log.Debugw(innerType, "to", peerID, "meta", string(meta))
 
 	case *pb.TraceEvent_RECV_RPC.Enum():
 		evt := evt.RecvRPC
@@ -98,7 +98,7 @@ func (t *GossipsubTracer) Trace(evt *pb.TraceEvent) {
 
 		meta, _ := json.Marshal(evt.Meta)
 
-		log.Infow(innerType, "from", peerID, "meta", string(meta))
+		log.Debugw(innerType, "from", peerID, "meta", string(meta))
 
 	case *pb.TraceEvent_DROP_RPC.Enum():
 		evt := evt.DropRPC
@@ -106,6 +106,6 @@ func (t *GossipsubTracer) Trace(evt *pb.TraceEvent) {
 
 		meta, _ := json.Marshal(evt.Meta)
 
-		log.Infow(innerType, "to", peerID, "meta", string(meta))
+		log.Debugw(innerType, "to", peerID, "meta", string(meta))
 	}
 }

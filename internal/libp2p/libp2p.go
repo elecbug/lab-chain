@@ -44,6 +44,8 @@ func SetLibp2pHost(cfg cfg.Config, priv crypto.PrivKey) (host.Host, error) {
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create libp2p host: %v", err)
+	} else {
+		logger.AppLogger.Infof("libp2p host created successfully")
 	}
 
 	return h, nil
@@ -65,6 +67,8 @@ func getResourceManager(cfg cfg.Config) (network.ResourceManager, error) {
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to create resource manager: %v", err)
+	} else {
+		logger.AppLogger.Infof("resource manager created successfully with limits: %+v", limits)
 	}
 
 	return rm, nil
@@ -105,12 +109,16 @@ func SetKadDHT(ctx context.Context, h host.Host, cfg cfg.Config) (*kaddht.IpfsDH
 
 		if err != nil {
 			log.Infof("failed to connect to peer: %s", p)
+		} else {
+			log.Infof("connected to bootstrap peer: %s", p)
 		}
 	}
 
 	if len(cfg.DHT.BootstrapPeers) > 0 {
 		if err := dht.Bootstrap(ctx); err != nil {
 			return nil, fmt.Errorf("failed to bootstrap DHT: %v", err)
+		} else {
+			log.Infof("bootstrap completed successfully")
 		}
 	}
 
@@ -139,19 +147,25 @@ func SetGossipSub(ctx context.Context, h host.Host) (*pubsub.Topic, *pubsub.Topi
 	)
 
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to create GossipSub: %v", err)
+		return nil, nil, fmt.Errorf("failed to create gossipsub: %v", err)
+	} else {
+		logger.AppLogger.Infof("gossipsub created successfully")
 	}
 
 	blockTopic, err := ps.Join("lab-chain-blocks")
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to join block topic: %v", err)
+	} else {
+		logger.AppLogger.Infof("joined block topic successfully")
 	}
 
 	txTopic, err := ps.Join("lab-chain-transactions")
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to join transaction topic: %v", err)
+	} else {
+		logger.AppLogger.Infof("joined transaction topic successfully")
 	}
 
 	return blockTopic, txTopic, nil
