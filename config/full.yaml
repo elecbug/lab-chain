@@ -1,4 +1,4 @@
-log_level: "debug"
+log_level: "info"
 mode: "full" # full, light, boot
 network:
   ip_address: "0.0.0.0"
@@ -6,4 +6,4 @@ network:
 dht:
   mode: "server"
   bootstrap_peers:
-    - "/ip4/172.20.0.2/tcp/12000/p2p/12D3KooWELCSwHf5nq1dB8BeJJyntcVdLqTb2griBwz6YLEWtyLx"
+    - "/ip4/172.20.0.2/tcp/12000/p2p/12D3KooWDZNQvpy2oM979kqFsEA8KykScP9GB4noNDpcJQjtBbY2"

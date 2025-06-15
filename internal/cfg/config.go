@@ -2,9 +2,11 @@ package cfg
 
 import (
 	"flag"
-	"log"
+	"fmt"
 	"os"
 
+	"github.com/elecbug/lab-chain/internal/logger"
+	"github.com/libp2p/go-libp2p/core/crypto"
 	"gopkg.in/yaml.v2"
 )
 
@@ -25,15 +27,35 @@ type DHTConfig struct {
 	BootstrapPeers []string `yaml:"bootstrap_peers"` // List of bootstrap peers for DHT
 }
 
-// initCfg initializes the configuration from the YAML file
-func InitCfg() Config {
-	cfg := flag.String("cfg", "cfg.yaml", "Path to the configuration file")
+// InitSetting initializes the configuration from the YAML file
+func InitSetting() (*Config, *crypto.PrivKey, error) {
+	cfgFile := flag.String("cfg", "cfg.yaml", "Path to the configuration file")
+	keyFile := flag.String("key", "keys", "Path to the key file name without extention (optional)")
 	flag.Parse()
 
-	file, err := os.Open(*cfg)
+	config, err := setConfig(*cfgFile)
 
 	if err != nil {
-		log.Fatalf("Failed to open configuration file: %v", err)
+		return nil, nil, fmt.Errorf("failed to set configuration: %v", err)
+	}
+
+	key, err := setKeyPair(*keyFile)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to set key pair: %v", err)
+	}
+
+	return config, key, nil
+}
+
+// GetConfig returns the configuration from the YAML file
+func setConfig(cfgFile string) (*Config, error) {
+	log := logger.AppLogger
+
+	file, err := os.Open(cfgFile)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to open configuration file: %v", err)
 	}
 	defer file.Close()
 
@@ -42,10 +64,81 @@ func InitCfg() Config {
 	decoder := yaml.NewDecoder(file)
 
 	if err := decoder.Decode(&config); err != nil {
-		log.Fatalf("Failed to decode YAML file into cfg.Config: %v", err)
+		return nil, fmt.Errorf("failed to decode YAML file into cfg.Config: %v", err)
 	}
 
-	log.Printf("Configuration: %+v", config)
+	log.Infof("Configuration loaded successfully from %s", cfgFile)
 
-	return config
+	return &config, nil
+}
+
+// setKeyPair checks for existing key files and generates a new key pair if they do not exist
+func setKeyPair(file string) (*crypto.PrivKey, error) {
+	log := logger.AppLogger
+
+	priv := fmt.Sprintf("/app/data/%s.pem", file)
+	pub := fmt.Sprintf("/app/data/%s.pub", file)
+
+	_, privErr := os.Stat(priv)
+	_, pubErr := os.Stat(pub)
+
+	if os.IsNotExist(privErr) || os.IsNotExist(pubErr) {
+		log.Infof("Key files not found, generating new key pair: %s and %s", priv, pub)
+
+		privKey, pubKey, err := crypto.GenerateEd25519Key(nil)
+
+		if err != nil {
+			return nil, fmt.Errorf("failed to generate key pair: %v", err)
+		}
+
+		// Save the private key
+		if bs, err := crypto.MarshalPrivateKey(privKey); err != nil {
+			return nil, fmt.Errorf("failed to write private key to file %s: %v", priv, err)
+		} else {
+			if err := os.WriteFile(priv, bs, 0600); err != nil {
+				return nil, fmt.Errorf("failed to write private key to file %s: %v", priv, err)
+			}
+		}
+
+		// Save the public key
+		if bs, err := crypto.MarshalPublicKey(pubKey); err != nil {
+			return nil, fmt.Errorf("failed to write public key to file %s: %v", pub, err)
+		} else {
+			if err := os.WriteFile(pub, bs, 0644); err != nil {
+				return nil, fmt.Errorf("failed to write public key to file %s: %v", pub, err)
+			}
+		}
+
+		log.Infof("New key pair generated and saved to %s and %s", priv, pub)
+
+		return &privKey, nil
+	} else {
+		log.Infof("Key files found: %s and %s", priv, pub)
+
+		// Load the private key
+		privKeyBytes, err := os.ReadFile(priv)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read private key from file %s: %v", priv, err)
+		}
+
+		privKey, err := crypto.UnmarshalPrivateKey(privKeyBytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal private key from file %s: %v", priv, err)
+		}
+
+		// Load the public key
+		pubKeyBytes, err := os.ReadFile(pub)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read public key from file %s: %v", pub, err)
+		}
+
+		_, err = crypto.UnmarshalPublicKey(pubKeyBytes)
+		if err != nil {
+			return nil, fmt.Errorf("failed to unmarshal public key from file %s: %v", pub, err)
+		}
+
+		log.Infof("Key pair loaded successfully from %s and %s", priv, pub)
+
+		return &privKey, nil
+	}
 }

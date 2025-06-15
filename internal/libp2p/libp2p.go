@@ -3,12 +3,14 @@ package libp2p
 import (
 	"context"
 	"fmt"
-	"log"
 
 	"github.com/elecbug/lab-chain/internal/cfg"
+	"github.com/elecbug/lab-chain/internal/logger"
+	"github.com/elecbug/lab-chain/internal/logging"
 	"github.com/libp2p/go-libp2p"
 	kaddht "github.com/libp2p/go-libp2p-kad-dht"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"github.com/libp2p/go-libp2p/core/crypto"
 	"github.com/libp2p/go-libp2p/core/host"
 	"github.com/libp2p/go-libp2p/core/network"
 	"github.com/libp2p/go-libp2p/core/peer"
@@ -20,10 +22,14 @@ import (
 	"github.com/multiformats/go-multiaddr"
 )
 
-// setLibp2pHost creates a new libp2p host with the provided configuration
-func SetLibp2pHost(cfg cfg.Config) (host.Host, error) {
+// SetLibp2pHost creates a new libp2p host with the provided configuration
+func SetLibp2pHost(cfg cfg.Config, priv crypto.PrivKey) (host.Host, error) {
 	// Create a new libp2p host with the provided configuration
 	rm, err := getResourceManager(cfg)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to create resource manager: %v", err)
+	}
 
 	h, err := libp2p.New(
 		libp2p.ListenAddrStrings(fmt.Sprintf("/ip4/%s/tcp/%d", cfg.Network.IPAddress, 12000)),
@@ -31,12 +37,15 @@ func SetLibp2pHost(cfg cfg.Config) (host.Host, error) {
 		libp2p.Muxer(yamux.ID, yamux.DefaultTransport),
 		libp2p.Transport(tcp.NewTCPTransport),
 		libp2p.ResourceManager(rm),
+		libp2p.Identity(priv),
 	)
 
 	identify.NewIDService(h)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create libp2p host: %v", err)
+	} else {
+		logger.AppLogger.Infof("libp2p host created successfully")
 	}
 
 	return h, nil
@@ -57,14 +66,18 @@ func getResourceManager(cfg cfg.Config) (network.ResourceManager, error) {
 	rm, err := rcmgr.NewResourceManager(limiter)
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create resource manager: %v", err)
+	} else {
+		logger.AppLogger.Infof("resource manager created successfully with limits: %+v", limits)
 	}
 
-	return rm, err
+	return rm, nil
 }
 
 // SetKadDHT initializes the Kademlia DHT for peer discovery and routing
 func SetKadDHT(ctx context.Context, h host.Host, cfg cfg.Config) (*kaddht.IpfsDHT, error) {
+	log := logger.AppLogger
+
 	// Create a new Kademlia DHT instance with the provided host and configuration
 	dht, err := kaddht.New(ctx, h,
 		kaddht.Mode(getKadMode(cfg)),
@@ -81,27 +94,31 @@ func SetKadDHT(ctx context.Context, h host.Host, cfg cfg.Config) (*kaddht.IpfsDH
 		peerAddr, err := multiaddr.NewMultiaddr(p)
 
 		if err != nil {
-			log.Printf("Invalid multiaddr %s: %v", p, err)
+			log.Infof("invalid multiaddr: %s", p)
 			continue
 		}
 
 		peerInfo, err := peer.AddrInfoFromP2pAddr(peerAddr)
 
 		if err != nil {
-			log.Printf("Failed to parse peer info from multiaddr %s: %v", p, err)
+			log.Infof("failed to parse peer info from multiaddr: %s", p)
 			continue
 		}
 
 		err = h.Connect(ctx, *peerInfo)
 
 		if err != nil {
-			log.Printf("Failed to connect to peer %s: %v", p, err)
+			log.Infof("failed to connect to peer: %s", p)
+		} else {
+			log.Infof("connected to bootstrap peer: %s", p)
 		}
 	}
 
 	if len(cfg.DHT.BootstrapPeers) > 0 {
 		if err := dht.Bootstrap(ctx); err != nil {
-			return nil, err
+			return nil, fmt.Errorf("failed to bootstrap DHT: %v", err)
+		} else {
+			log.Infof("bootstrap completed successfully")
 		}
 	}
 
@@ -110,31 +127,45 @@ func SetKadDHT(ctx context.Context, h host.Host, cfg cfg.Config) (*kaddht.IpfsDH
 
 // getKadMode determines the Kademlia DHT mode based on the configuration
 func getKadMode(cfg cfg.Config) kaddht.ModeOpt {
+	log := logger.AppLogger
 	switch cfg.DHT.Mode {
 	case "server":
 		return kaddht.ModeServer
 	case "client":
 		return kaddht.ModeClient
 	default:
-		log.Printf("Unknown DHT mode %s, defaulting to server mode", cfg.DHT.Mode)
+		log.Infof("unknown DHT mode %s, defaulting to server mode", cfg.DHT.Mode)
 		return kaddht.ModeServer
 	}
 }
 
 // SetGossipSub initializes the GossipSub pubsub topics for block and transaction propagation
 func SetGossipSub(ctx context.Context, h host.Host) (*pubsub.Topic, *pubsub.Topic, error) {
-	ps, err := pubsub.NewGossipSub(ctx, h)
+	ps, err := pubsub.NewGossipSub(ctx, h,
+		pubsub.WithEventTracer(&logging.GossipsubTracer{}),
+		pubsub.WithMessageSigning(true),
+	)
+
+	if err != nil {
+		return nil, nil, fmt.Errorf("failed to create gossipsub: %v", err)
+	} else {
+		logger.AppLogger.Infof("gossipsub created successfully")
+	}
 
 	blockTopic, err := ps.Join("lab-chain-blocks")
 
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to join block topic: %v", err)
+	} else {
+		logger.AppLogger.Infof("joined block topic successfully")
 	}
 
 	txTopic, err := ps.Join("lab-chain-transactions")
 
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("failed to join transaction topic: %v", err)
+	} else {
+		logger.AppLogger.Infof("joined transaction topic successfully")
 	}
 
 	return blockTopic, txTopic, nil
