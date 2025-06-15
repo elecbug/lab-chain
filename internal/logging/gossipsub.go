@@ -3,6 +3,7 @@ package logging
 import (
 	"encoding/hex"
 	"encoding/json"
+	"strings"
 
 	"github.com/elecbug/lab-chain/internal/logger"
 
@@ -16,7 +17,9 @@ type GossipsubTracer struct{}
 // Gossipsub event tracer method
 func (t *GossipsubTracer) Trace(evt *pb.TraceEvent) {
 	log := logger.GossipsubLogger
+
 	innerType := evt.Type.String()
+	innerType = strings.ReplaceAll(strings.ToLower(innerType), "_", " ")
 
 	switch *evt.Type.Enum() {
 	case *pb.TraceEvent_PUBLISH_MESSAGE.Enum():
