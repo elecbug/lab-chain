@@ -3,9 +3,9 @@ package cfg
 import (
 	"flag"
 	"fmt"
-	"log"
 	"os"
 
+	"github.com/elecbug/lab-chain/internal/logger"
 	"github.com/libp2p/go-libp2p/core/crypto"
 	"gopkg.in/yaml.v2"
 )
@@ -30,7 +30,7 @@ type DHTConfig struct {
 // InitSetting initializes the configuration from the YAML file
 func InitSetting() (*Config, *crypto.PrivKey, error) {
 	cfgFile := flag.String("cfg", "cfg.yaml", "Path to the configuration file")
-	keyFile := flag.String("key", "keypair", "Path to the key file name without extention (optional)")
+	keyFile := flag.String("key", "keys", "Path to the key file name without extention (optional)")
 	flag.Parse()
 
 	config, err := setConfig(*cfgFile)
@@ -50,6 +50,8 @@ func InitSetting() (*Config, *crypto.PrivKey, error) {
 
 // GetConfig returns the configuration from the YAML file
 func setConfig(cfgFile string) (*Config, error) {
+	log := logger.AppLogger
+
 	file, err := os.Open(cfgFile)
 
 	if err != nil {
@@ -65,21 +67,24 @@ func setConfig(cfgFile string) (*Config, error) {
 		return nil, fmt.Errorf("failed to decode YAML file into cfg.Config: %v", err)
 	}
 
-	log.Printf("Configuration: %+v", config)
+	log.Infof("Configuration loaded successfully from %s", cfgFile)
 
 	return &config, nil
 }
 
 // setKeyPair checks for existing key files and generates a new key pair if they do not exist
 func setKeyPair(file string) (*crypto.PrivKey, error) {
-	priv := fmt.Sprintf("%s.pem", file)
-	pub := fmt.Sprintf("%s.pub", file)
+	log := logger.AppLogger
+
+	priv := fmt.Sprintf("/app/data/%s.pem", file)
+	pub := fmt.Sprintf("/app/data/%s.pub", file)
 
 	_, privErr := os.Stat(priv)
 	_, pubErr := os.Stat(pub)
 
 	if os.IsNotExist(privErr) || os.IsNotExist(pubErr) {
-		log.Printf("Key files %s or %s do not exist, generating new key pair...", priv, pub)
+		log.Infof("Key files not found, generating new key pair: %s and %s", priv, pub)
+
 		privKey, pubKey, err := crypto.GenerateEd25519Key(nil)
 
 		if err != nil {
@@ -104,11 +109,11 @@ func setKeyPair(file string) (*crypto.PrivKey, error) {
 			}
 		}
 
-		log.Printf("New key pair generated and saved to %s and %s", priv, pub)
+		log.Infof("New key pair generated and saved to %s and %s", priv, pub)
 
 		return &privKey, nil
 	} else {
-		log.Printf("Key files %s and %s already exist, loading existing key pair...", priv, pub)
+		log.Infof("Key files found: %s and %s", priv, pub)
 
 		// Load the private key
 		privKeyBytes, err := os.ReadFile(priv)
@@ -132,7 +137,7 @@ func setKeyPair(file string) (*crypto.PrivKey, error) {
 			return nil, fmt.Errorf("failed to unmarshal public key from file %s: %v", pub, err)
 		}
 
-		log.Printf("Existing key pair loaded from %s and %s", priv, pub)
+		log.Infof("Key pair loaded successfully from %s and %s", priv, pub)
 
 		return &privKey, nil
 	}

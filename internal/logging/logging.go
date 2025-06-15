@@ -1,19 +1,19 @@
 package logging
 
 import (
+	"fmt"
+
 	"github.com/elecbug/lab-chain/internal/cfg"
 	ipfslog "github.com/ipfs/go-log/v2"
 	"github.com/libp2p/go-libp2p/core/host"
 )
 
-var AppLogger = ipfslog.Logger("app")
-
 // InitLogging initializes the logging system for the application.
-func InitLogging(h host.Host, cfg cfg.Config) {
+func InitLogging(h host.Host, cfg cfg.Config) error {
 	level, err := ipfslog.LevelFromString(cfg.LogLevel)
 
 	if err != nil {
-		AppLogger.Fatalw("failed to set log level", err)
+		return fmt.Errorf("failed to set log level: %v", err)
 	}
 
 	labels := map[string]string{
@@ -28,4 +28,6 @@ func InitLogging(h host.Host, cfg cfg.Config) {
 		Stderr: true,
 		File:   "/app/data/log.jsonl",
 	})
+
+	return nil
 }

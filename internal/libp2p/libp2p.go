@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/elecbug/lab-chain/internal/cfg"
-	"github.com/elecbug/lab-chain/internal/logging"
+	"github.com/elecbug/lab-chain/internal/logger"
 	"github.com/libp2p/go-libp2p"
 	kaddht "github.com/libp2p/go-libp2p-kad-dht"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -71,7 +71,7 @@ func getResourceManager(cfg cfg.Config) (network.ResourceManager, error) {
 
 // SetKadDHT initializes the Kademlia DHT for peer discovery and routing
 func SetKadDHT(ctx context.Context, h host.Host, cfg cfg.Config) (*kaddht.IpfsDHT, error) {
-	log := logging.AppLogger
+	log := logger.AppLogger
 
 	// Create a new Kademlia DHT instance with the provided host and configuration
 	dht, err := kaddht.New(ctx, h,
@@ -89,21 +89,21 @@ func SetKadDHT(ctx context.Context, h host.Host, cfg cfg.Config) (*kaddht.IpfsDH
 		peerAddr, err := multiaddr.NewMultiaddr(p)
 
 		if err != nil {
-			log.Infof("invalid multiaddr", p)
+			log.Infof("invalid multiaddr: %s", p)
 			continue
 		}
 
 		peerInfo, err := peer.AddrInfoFromP2pAddr(peerAddr)
 
 		if err != nil {
-			log.Infof("failed to parse peer info from multiaddr", p)
+			log.Infof("failed to parse peer info from multiaddr: %s", p)
 			continue
 		}
 
 		err = h.Connect(ctx, *peerInfo)
 
 		if err != nil {
-			log.Infof("failed to connect to peer", p)
+			log.Infof("failed to connect to peer: %s", p)
 		}
 	}
 
@@ -118,14 +118,14 @@ func SetKadDHT(ctx context.Context, h host.Host, cfg cfg.Config) (*kaddht.IpfsDH
 
 // getKadMode determines the Kademlia DHT mode based on the configuration
 func getKadMode(cfg cfg.Config) kaddht.ModeOpt {
-	log := logging.AppLogger
+	log := logger.AppLogger
 	switch cfg.DHT.Mode {
 	case "server":
 		return kaddht.ModeServer
 	case "client":
 		return kaddht.ModeClient
 	default:
-		log.Infof("unknown DHT mode, defaulting to server mode", cfg.DHT.Mode)
+		log.Infof("unknown DHT mode %s, defaulting to server mode", cfg.DHT.Mode)
 		return kaddht.ModeServer
 	}
 }
