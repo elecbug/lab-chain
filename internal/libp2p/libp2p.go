@@ -6,6 +6,7 @@ import (
 
 	"github.com/elecbug/lab-chain/internal/cfg"
 	"github.com/elecbug/lab-chain/internal/logger"
+	"github.com/elecbug/lab-chain/internal/logging"
 	"github.com/libp2p/go-libp2p"
 	kaddht "github.com/libp2p/go-libp2p-kad-dht"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -132,7 +133,10 @@ func getKadMode(cfg cfg.Config) kaddht.ModeOpt {
 
 // SetGossipSub initializes the GossipSub pubsub topics for block and transaction propagation
 func SetGossipSub(ctx context.Context, h host.Host) (*pubsub.Topic, *pubsub.Topic, error) {
-	ps, err := pubsub.NewGossipSub(ctx, h)
+	ps, err := pubsub.NewGossipSub(ctx, h,
+		pubsub.WithEventTracer(&logging.GossipsubTracer{}),
+		pubsub.WithMessageSigning(true),
+	)
 
 	if err != nil {
 		return nil, nil, fmt.Errorf("failed to create GossipSub: %v", err)
