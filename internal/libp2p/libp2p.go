@@ -21,7 +21,7 @@ import (
 	"github.com/multiformats/go-multiaddr"
 )
 
-// setLibp2pHost creates a new libp2p host with the provided configuration
+// SetLibp2pHost creates a new libp2p host with the provided configuration
 func SetLibp2pHost(cfg cfg.Config, priv crypto.PrivKey) (host.Host, error) {
 	// Create a new libp2p host with the provided configuration
 	rm, err := getResourceManager(cfg)
