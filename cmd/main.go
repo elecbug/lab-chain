@@ -11,7 +11,7 @@ import (
 
 func main() {
 	// Initialize configuration from the YAML file
-	cfg := cfg.InitCfg()
+	cfg := cfg.InitSetting()
 	ctx := context.Background()
 
 	switch cfg.Mode {
