@@ -92,7 +92,7 @@ func initGeneralNode(ctx context.Context, cfg cfg.Config, priv crypto.PrivKey) e
 		addrs = append(addrs, fmt.Sprintf("%s/p2p/%s", addr, h.ID()))
 	}
 
-	log.Infof("libp2p host listening on", addrs)
+	log.Infof("libp2p host listening on %v", addrs)
 
 	select {}
 }
@@ -130,7 +130,7 @@ func initBootNode(ctx context.Context, cfg cfg.Config, priv crypto.PrivKey) erro
 		addrs = append(addrs, fmt.Sprintf("%s/p2p/%s", addr, h.ID()))
 	}
 
-	log.Infof("libp2p host listening on", addrs)
+	log.Infof("libp2p host listening on %v", addrs)
 
 	select {}
 }
