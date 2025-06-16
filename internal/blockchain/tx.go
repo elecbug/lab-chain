@@ -1,4 +1,4 @@
-package transaction
+package blockchain
 
 import (
 	"context"
@@ -23,8 +23,40 @@ type Transaction struct {
 	Signature []byte   `json:"signature"` // Transaction signature
 }
 
+// CreateTx creates a new transaction with the given parameters and signs it
+func CreateTx(fromPriv *ecdsa.PrivateKey, to string, amount, price *big.Int, chain *Blockchain) (*Transaction, error) {
+	log := logger.LabChainLogger
+
+	pubKey := fromPriv.Public().(*ecdsa.PublicKey)
+	fromAddr := crypto.PubkeyToAddress(*pubKey)
+
+	tx := &Transaction{
+		From:   fromAddr.Hex(),
+		To:     to,
+		Amount: amount,
+		Nonce:  chain.GetNonce(fromAddr.Hex()),
+		Price:  price,
+	}
+
+	err := tx.sign(fromPriv)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign transaction: %v", err)
+	} else {
+		log.Infof("transaction signed successfully: %s -> %s, amount: %s, price: %s, nonce: %d",
+			tx.From, tx.To, tx.Amount.String(), tx.Price.String(), tx.Nonce)
+	}
+
+	return tx, nil
+}
+
 // VerifySignature verifies the transaction's signature
 func (tx *Transaction) VerifySignature() (bool, error) {
+	if tx.From == "COINBASE" {
+		// Coinbase transactions do not have a signature
+		return true, nil
+	}
+
 	hash := tx.hash()
 	sig := tx.Signature
 
@@ -43,38 +75,11 @@ func (tx *Transaction) VerifySignature() (bool, error) {
 	return strings.EqualFold(derivedAddr.Hex(), tx.From), nil
 }
 
-// CreateTx creates a new transaction with the given parameters and signs it
-func CreateTx(fromPriv *ecdsa.PrivateKey, to string, amount, price *big.Int, nonce uint64) (*Transaction, error) {
-	log := logger.AppLogger
-
-	pubKey := fromPriv.Public().(*ecdsa.PublicKey)
-	fromAddr := crypto.PubkeyToAddress(*pubKey)
-
-	tx := &Transaction{
-		From:   fromAddr.Hex(),
-		To:     to,
-		Amount: amount,
-		Nonce:  nonce,
-		Price:  price,
-	}
-
-	err := tx.sign(fromPriv)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to sign transaction: %v", err)
-	} else {
-		log.Infof("transaction signed successfully: %s -> %s, amount: %s, price: %s, nonce: %d",
-			tx.From, tx.To, tx.Amount.String(), tx.Price.String(), tx.Nonce)
-	}
-
-	return tx, nil
-}
-
 // PublishTx publishes a transaction to the specified pubsub topic
-func PublishTx(ctx context.Context, txTopic *pubsub.Topic, tx *Transaction) error {
-	log := logger.AppLogger
+func (tx *Transaction) PublishTx(ctx context.Context, txTopic *pubsub.Topic) error {
+	log := logger.LabChainLogger
 
-	txBs, err := serialize(tx)
+	txBs, err := serializeTx(tx)
 
 	if err != nil {
 		return fmt.Errorf("failed to serialize transaction: %v", err)
@@ -93,52 +98,6 @@ func PublishTx(ctx context.Context, txTopic *pubsub.Topic, tx *Transaction) erro
 	}
 
 	return nil
-}
-
-// RunSubscribeAndCollectTx listens for incoming transactions on the pubsub subscription
-func RunSubscribeAndCollectTx(ctx context.Context, sub *pubsub.Subscription, mempool *Mempool) {
-	log := logger.AppLogger
-
-	go func() {
-		for {
-			msg, err := sub.Next(ctx)
-
-			if err != nil {
-				log.Errorf("failed to receive pubsub message: %v", err)
-				continue
-			}
-
-			if msg.ReceivedFrom == msg.GetFrom() {
-				continue
-			}
-
-			tx, err := deserialize(msg.Data)
-
-			if err != nil {
-				log.Warnf("invalid tx: failed to deserialize: %v", err)
-				continue
-			}
-
-			ok, err := tx.VerifySignature()
-
-			if err != nil || !ok {
-				log.Warnf("invalid tx: signature verification failed: %v", err)
-				continue
-			}
-
-			txID := string(tx.Signature) // or Hash()
-			mempool.mu.Lock()
-
-			if _, exists := mempool.pool[txID]; !exists {
-				mempool.pool[txID] = tx
-				log.Infof("transaction received and stored: %s -> %s, amount: %s", tx.From, tx.To, tx.Amount.String())
-			} else {
-				log.Debugf("transaction already in mempool, skipping: %s", txID)
-			}
-
-			mempool.mu.Unlock()
-		}
-	}()
 }
 
 // hash computes the hash of the transaction for signing and verification
@@ -167,8 +126,8 @@ func (tx *Transaction) sign(privKey *ecdsa.PrivateKey) error {
 	return nil
 }
 
-// serialize and deserialize functions for transaction
-func serialize(tx *Transaction) ([]byte, error) {
+// serializeTx and deserialize functions for transaction
+func serializeTx(tx *Transaction) ([]byte, error) {
 	jsonBytes, err := json.Marshal(tx)
 
 	if err != nil {
@@ -178,8 +137,20 @@ func serialize(tx *Transaction) ([]byte, error) {
 	return jsonBytes, nil
 }
 
-// deserialize converts JSON bytes back into a Transaction object
-func deserialize(data []byte) (*Transaction, error) {
+// serializeTxs serializes the transactions into a byte slice
+func serializeTxs(txs []*Transaction) []byte {
+	var data []byte
+
+	for _, tx := range txs {
+		b, _ := json.Marshal(tx)
+		data = append(data, b...)
+	}
+
+	return data
+}
+
+// deserializeTx converts JSON bytes back into a Transaction object
+func deserializeTx(data []byte) (*Transaction, error) {
 	var tx Transaction
 
 	err := json.Unmarshal(data, &tx)

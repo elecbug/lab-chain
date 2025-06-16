@@ -24,8 +24,8 @@ func InitLogging(h host.Host, cfg cfg.Config) error {
 		Level:  level,
 		Labels: labels,
 		Format: ipfslog.JSONOutput,
-		Stdout: true,
-		Stderr: true,
+		Stdout: false,
+		Stderr: false,
 		File:   "/app/data/log.jsonl",
 	})
 

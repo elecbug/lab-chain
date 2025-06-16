@@ -6,3 +6,4 @@ import (
 
 var AppLogger = ipfslog.Logger("app")
 var GossipsubLogger = ipfslog.Logger("gossipsub")
+var LabChainLogger = ipfslog.Logger("labchain")

@@ -1,4 +1,4 @@
-package transaction
+package blockchain
 
 import (
 	"sort"
@@ -18,10 +18,11 @@ func NewMempool() *Mempool {
 	}
 }
 
-// PickTopTxs returns the top count transactions from the mempool sorted by price
+// PickTopTxs returns the top count transactions from the mempool sorted by price,
+// and removes them from the mempool.
 func (mp *Mempool) PickTopTxs(count int) []*Transaction {
-	mp.mu.RLock()
-	defer mp.mu.RUnlock()
+	mp.mu.Lock()
+	defer mp.mu.Unlock()
 
 	// Copy to slice
 	var txs []*Transaction
@@ -35,7 +36,21 @@ func (mp *Mempool) PickTopTxs(count int) []*Transaction {
 	})
 
 	if len(txs) > count {
-		return txs[:count]
+		txs = txs[:count]
 	}
+
+	// Remove selected transactions from the pool
+	for _, tx := range txs {
+		delete(mp.pool, string(tx.Signature))
+	}
+
 	return txs
+}
+
+// Remove deletes a transaction from the mempool by hash
+func (mp *Mempool) Remove(tx *Transaction) {
+	mp.mu.Lock()
+	defer mp.mu.Unlock()
+
+	delete(mp.pool, string(tx.Signature))
 }
