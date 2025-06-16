@@ -5,7 +5,7 @@ sudo docker rm -f node3
 sudo docker rm -f node4
 sudo docker rm -f node5
 
-./shell/build.sh 
+./shell/build.sh
 
 ./shell/run.sh boot config/boot.yaml boot-key
 ./shell/run.sh node1 config/full.yaml node1-key
