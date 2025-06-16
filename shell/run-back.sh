@@ -1,5 +1,5 @@
 sudo docker run \
-    --dit \
+    -dit \
     --name $1 \
     --network lab-chain-network \
     --mount type=bind,source=$(pwd)/config,target=/app/config \
