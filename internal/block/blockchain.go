@@ -69,6 +69,49 @@ func (bc *Blockchain) MineBlock(prevHash []byte, index uint64, txs []*transactio
 	}
 }
 
+// CreateGenesisBlock creates the first block in the blockchain with a coinbase transaction
+func CreateGenesisBlock(to string) *Block {
+	txs := []*transaction.Transaction{
+		{
+			From:      "COINBASE",
+			To:        to,
+			Amount:    big.NewInt(1000), // Initial reward
+			Nonce:     0,
+			Price:     big.NewInt(0),
+			Signature: nil,
+		},
+	}
+
+	header := fmt.Sprintf("0%x%d%s%d", []byte{}, time.Now().Unix(), to, 0)
+	headerHash := sha256.Sum256([]byte(header))
+	fullData := append(headerHash[:], serializeTxs(txs)...)
+	hash := sha256.Sum256(fullData)
+
+	return &Block{
+		Index:        0,
+		PreviousHash: []byte{},
+		Timestamp:    time.Now().Unix(),
+		Transactions: txs,
+		Miner:        to,
+		Nonce:        0,
+		Hash:         hash[:],
+	}
+}
+
+// InitBlockchain creates a new blockchain with a genesis block
+func InitBlockchain(miner string) *Blockchain {
+	genesis := CreateGenesisBlock(miner)
+
+	bc := &Blockchain{
+		Blocks:       []*Block{genesis},
+		Difficulty:   big.NewInt(1).Lsh(big.NewInt(1), 240), // 초기 난이도 설정 (예: 2^240)
+		longestIndex: 0,
+		Forks:        make(map[uint64][]*Block),
+	}
+
+	return bc
+}
+
 // serializeTxs serializes the transactions into a byte slice.
 func serializeTxs(txs []*transaction.Transaction) []byte {
 	var data []byte

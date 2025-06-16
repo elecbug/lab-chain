@@ -67,6 +67,8 @@ func CLICommand(user *user.User) {
 			txFunc(user, args)
 		case "mine":
 			mineFunc(user, args)
+		case "genesis":
+			genesisFunc(user, args)
 
 		default:
 			fmt.Println("Unknown command. Type 'help' for options.")
@@ -249,4 +251,38 @@ func mineFunc(user *user.User, args []string) {
 
 	fmt.Printf("Block mined successfully: index %d, miner %s, nonce %d, hash %x\n",
 		b.Index, b.Miner, b.Nonce, b.Hash)
+}
+
+func genesisFunc(user *user.User, args []string) {
+	log := logger.AppLogger
+
+	if user.MasterKey == nil {
+		fmt.Println("No master key loaded. Please load it first.")
+		return
+	}
+
+	user.Blockchain = block.InitBlockchain(user.CurrentAddress.Hex())
+
+	log.Infof("genesis block created successfully: index %d, miner %s, nonce %d, hash %x",
+		user.Blockchain.Blocks[0].Index,
+		user.Blockchain.Blocks[0].Miner,
+		user.Blockchain.Blocks[0].Nonce,
+		user.Blockchain.Blocks[0].Hash,
+	)
+	fmt.Printf("Genesis block created successfully: index %d, miner %s, nonce %d, hash %x\n",
+		user.Blockchain.Blocks[0].Index,
+		user.Blockchain.Blocks[0].Miner,
+		user.Blockchain.Blocks[0].Nonce,
+		user.Blockchain.Blocks[0].Hash,
+	)
+
+	b := user.Blockchain.Blocks[0]
+	err := block.PublishBlock(user.Context, user.BlockTopic, b)
+
+	if err != nil {
+		log.Errorf("failed to publish block: %v", err)
+	} else {
+		log.Infof("block mined and published successfully: index %d, miner %s, nonce %d, hash %x",
+			b.Index, b.Miner, b.Nonce, b.Hash)
+	}
 }
