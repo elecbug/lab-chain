@@ -2,11 +2,8 @@ package block
 
 import (
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"fmt"
-	"math/big"
-	"time"
 
 	"github.com/elecbug/lab-chain/internal/logger"
 	"github.com/elecbug/lab-chain/internal/transaction"
@@ -22,38 +19,6 @@ type Block struct {
 	Miner        string
 	Nonce        uint64
 	Hash         []byte
-}
-
-// MineBlock creates a new block with the given parameters.
-func MineBlock(prevHash []byte, index uint64, txs []*transaction.Transaction, miner string, difficultyTarget *big.Int) *Block {
-	var nonce uint64
-	var hash []byte
-	timestamp := time.Now().Unix()
-
-	for {
-		header := fmt.Sprintf("%d%x%d%s%d", index, prevHash, timestamp, miner, nonce)
-		headerHash := sha256.Sum256([]byte(header))             // 1차: 헤더
-		fullData := append(headerHash[:], serializeTxs(txs)...) // 2차: 트랜잭션 포함
-
-		digest := sha256.Sum256(fullData)
-		hash = digest[:]
-
-		if new(big.Int).SetBytes(hash).Cmp(difficultyTarget) < 0 {
-			break
-		}
-
-		nonce++
-	}
-
-	return &Block{
-		Index:        index,
-		PreviousHash: prevHash,
-		Timestamp:    timestamp,
-		Transactions: txs,
-		Miner:        miner,
-		Nonce:        nonce,
-		Hash:         hash,
-	}
 }
 
 // PublishBlock serializes the block and publishes it to the pubsub topic.

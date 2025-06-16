@@ -2,13 +2,16 @@ package block
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"math/big"
 	"os"
 	"sync"
+	"time"
 
 	"github.com/elecbug/lab-chain/internal/logger"
+	"github.com/elecbug/lab-chain/internal/transaction"
 )
 
 // Blockchain represents the entire blockchain.
@@ -22,8 +25,41 @@ type Blockchain struct {
 	Forks map[uint64][]*Block // Index-based fork map
 }
 
-// AdjustDifficulty adjusts the mining difficulty based on the time taken to mine the last few blocks.
-func (bc *Blockchain) AdjustDifficulty(targetIntervalSec int64, windowSize int) {
+// MineBlock creates a new block with the given parameters.
+func (bc *Blockchain) MineBlock(prevHash []byte, index uint64, txs []*transaction.Transaction, miner string) *Block {
+	var nonce uint64
+	var hash []byte
+	timestamp := time.Now().Unix()
+	bc.adjustDifficulty(20, 10)
+	target := bc.Difficulty
+
+	for {
+		header := fmt.Sprintf("%d%x%d%s%d", index, prevHash, timestamp, miner, nonce)
+		headerHash := sha256.Sum256([]byte(header))
+		fullData := append(headerHash[:], serializeTxs(txs)...) // transaction hash 포함
+
+		digest := sha256.Sum256(fullData)
+		hash = digest[:]
+
+		if new(big.Int).SetBytes(hash).Cmp(target) < 0 {
+			break
+		}
+		nonce++
+	}
+
+	return &Block{
+		Index:        index,
+		PreviousHash: prevHash,
+		Timestamp:    timestamp,
+		Transactions: txs,
+		Miner:        miner,
+		Nonce:        nonce,
+		Hash:         hash,
+	}
+}
+
+// adjustDifficulty adjusts the mining difficulty based on the time taken to mine the last few blocks.
+func (bc *Blockchain) adjustDifficulty(targetIntervalSec int64, windowSize int) {
 	n := len(bc.Blocks)
 	if n <= windowSize {
 		return
