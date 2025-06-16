@@ -19,7 +19,7 @@ type Blockchain struct {
 	Blocks       []*Block   // Canonical chain
 	Difficulty   *big.Int   // Current PoW difficulty
 	longestIndex uint64     // Highest known block index
-	mu           sync.Mutex // Mutex to protect concurrent access
+	Mu           sync.Mutex // Mutex to protect concurrent access
 
 	// Optional: forks, orphan blocks, etc.
 	Forks map[uint64][]*Block // Index-based fork map
@@ -118,8 +118,8 @@ func (bc *Blockchain) VerifyBlock(block *Block, previous *Block) bool {
 
 // HandleIncomingBlock verifies and integrates the block, resolving forks if necessary
 func (bc *Blockchain) HandleIncomingBlock(block *Block) error {
-	bc.mu.Lock()
-	defer bc.mu.Unlock()
+	bc.Mu.Lock()
+	defer bc.Mu.Unlock()
 
 	n := len(bc.Blocks)
 	if n == 0 {
@@ -163,8 +163,8 @@ func (bc *Blockchain) addBlock(block *Block) error {
 
 // Save writes the blockchain to a file as JSON
 func (bc *Blockchain) Save(path string) error {
-	bc.mu.Lock()
-	defer bc.mu.Unlock()
+	bc.Mu.Lock()
+	defer bc.Mu.Unlock()
 
 	data, err := json.MarshalIndent(bc, "", "  ")
 
@@ -177,8 +177,8 @@ func (bc *Blockchain) Save(path string) error {
 
 // Load reads blockchain data from a file and replaces the in-memory state
 func (bc *Blockchain) Load(path string) error {
-	bc.mu.Lock()
-	defer bc.mu.Unlock()
+	bc.Mu.Lock()
+	defer bc.Mu.Unlock()
 
 	data, err := os.ReadFile(path)
 
