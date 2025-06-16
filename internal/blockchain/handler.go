@@ -1,6 +1,7 @@
 package blockchain
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"math/big"
@@ -122,76 +123,74 @@ func (bc *Blockchain) handleIncomingBlock(ctx context.Context, block *Block, blk
 	defer bc.Mu.Unlock()
 
 	log := logger.LabChainLogger
-
 	last := bc.Blocks[len(bc.Blocks)-1]
 
-	if block.Index == last.Index+1 && bc.VerifyBlock(block, last) {
-		return bc.addBlock(block)
-	}
+	// Check if the parent of this block is known
+	parent := bc.GetBlockByHash(block.PreviousHash)
+	if parent == nil {
+		// Possible fork or out-of-order block
+		log.Infof("previous hash not found for block index %d — treating as fork candidate", block.Index)
+		bc.pendingForkBlocks[block.Index] = block
 
-	if block.Index > last.Index+1 {
-		bc.pendingBlocks[block.Index] = block
-
-		for i := last.Index + 1; i < block.Index; i++ {
-			if _, exists := bc.pendingBlocks[i]; exists {
-				continue
-			}
-
-			req := &BlockMessage{Type: "REQ", ReqIdx: i}
-			data, err := serializeBlockMessage(req)
-
-			if err == nil {
-				blkTopic.Publish(ctx, data)
-				log.Infof("requested missing block index %d", i)
-			}
+		req := &BlockMessage{Type: "REQ", ReqIdx: block.Index - 1}
+		if data, err := serializeBlockMessage(req); err == nil {
+			blkTopic.Publish(ctx, data)
+			log.Infof("requested parent block index %d for possible fork", block.Index-1)
 		}
-		return fmt.Errorf("pending block cached: index %d", block.Index)
+		return fmt.Errorf("fork candidate block pending: index %d", block.Index)
 	}
 
+	// Append to current chain
+	if block.Index == last.Index+1 && bytes.Equal(block.PreviousHash, last.Hash) {
+		if bc.VerifyBlock(block, last) {
+			return bc.addBlock(block)
+		} else {
+			return fmt.Errorf("block failed verification: index %d", block.Index)
+		}
+	}
+
+	// Fork detection and processing (only when parent exists but index is lower or equal)
 	if block.Index <= last.Index {
 		log.Infof("potential fork detected at index %d", block.Index)
-
 		bc.pendingForkBlocks[block.Index] = block
 
 		forkChain := []*Block{}
 		current := block
+		var commonAncestor *Block
 
+		// Traverse backwards until known ancestor is found
 		for {
 			forkChain = append([]*Block{current}, forkChain...) // prepend
 			parent := bc.GetBlockByHash(current.PreviousHash)
 
 			if parent != nil {
+				commonAncestor = parent
 				break
 			}
 
 			missingIdx := current.Index - 1
+			parentCandidate := bc.pendingForkBlocks[missingIdx]
 
-			if _, ok := bc.pendingForkBlocks[missingIdx]; !ok {
+			if parentCandidate == nil {
 				req := &BlockMessage{Type: "REQ", ReqIdx: missingIdx}
 
 				if data, err := serializeBlockMessage(req); err == nil {
 					blkTopic.Publish(ctx, data)
+					log.Infof("missing parent block, requested index %d", missingIdx)
 				}
-
-				log.Infof("missing parent block, requested index %d", missingIdx)
 				return fmt.Errorf("waiting for parent block %d", missingIdx)
 			}
 
-			current = bc.pendingForkBlocks[missingIdx]
+			current = parentCandidate
 		}
 
-		commonAncestor := bc.GetBlockByHash(current.PreviousHash)
-
-		if commonAncestor == nil {
-			return fmt.Errorf("no common ancestor found")
-		}
-
-		commonIndex := current.Index - 1
-
+		commonIndex := commonAncestor.Index
 		prev := commonAncestor
 
 		for _, b := range forkChain {
 			if !bc.VerifyBlock(b, prev) {
+				log.Infof("Expected PreviousHash: %x", prev.Hash)
+				log.Infof("Actual PreviousHash in block: %x", b.PreviousHash)
 				return fmt.Errorf("invalid block in fork chain at index %d", b.Index)
 			}
 			prev = b
@@ -205,8 +204,26 @@ func (bc *Blockchain) handleIncomingBlock(ctx context.Context, block *Block, blk
 
 		log.Infof("switching to longer fork chain from index %d", commonIndex)
 		bc.Blocks = append(bc.Blocks[:commonIndex+1], forkChain...)
-
 		return nil
+	}
+
+	// Future block received before previous ones
+	if block.Index > last.Index+1 {
+		bc.pendingBlocks[block.Index] = block
+
+		for i := last.Index + 1; i < block.Index; i++ {
+			if _, exists := bc.pendingBlocks[i]; exists {
+				continue
+			}
+
+			req := &BlockMessage{Type: "REQ", ReqIdx: i}
+
+			if data, err := serializeBlockMessage(req); err == nil {
+				blkTopic.Publish(ctx, data)
+				log.Infof("requested missing block index %d", i)
+			}
+		}
+		return fmt.Errorf("pending block cached: index %d", block.Index)
 	}
 
 	return fmt.Errorf("unacceptable block: index %d", block.Index)

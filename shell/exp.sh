@@ -1,3 +1,5 @@
+rm -rf data/log.jsonl
+
 sudo docker rm -f boot
 sudo docker rm -f node1
 sudo docker rm -f node2

@@ -20,6 +20,7 @@ type Block struct {
 	Miner        string
 	Nonce        uint64
 	Hash         []byte
+	Difficulty   *big.Int // Difficulty for PoW
 }
 
 // PublishBlock serializes the block into a BlockMessage and publishes it to the pubsub topic

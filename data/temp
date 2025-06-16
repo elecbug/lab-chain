@@ -1,6 +1,7 @@
 mkey load data/node1.mkey
 wallet set 0
-chain load data/genesis.chain
+genesis
+chain save data/genesis.chain
 
 mine
 mine
