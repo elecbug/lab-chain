@@ -1,4 +1,4 @@
-package block
+package blockchain
 
 import (
 	"bytes"
@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/elecbug/lab-chain/internal/logger"
-	"github.com/elecbug/lab-chain/internal/transaction"
 )
 
 // Blockchain represents the entire blockchain.
@@ -25,15 +24,25 @@ type Blockchain struct {
 	Forks map[uint64][]*Block // Index-based fork map
 }
 
-func (bc *Blockchain) MineBlock(prevHash []byte, index uint64, txs []*transaction.Transaction, miner string) *Block {
+func (bc *Blockchain) MineBlock(prevHash []byte, index uint64, txs []*Transaction, miner string) *Block {
 	var nonce uint64
 	var hash []byte
 	timestamp := time.Now().Unix()
 	bc.adjustDifficulty(20, 10)
 	target := bc.Difficulty
 
+	totalFee := big.NewInt(0)
+
+	for _, tx := range txs {
+		if tx.From != "COINBASE" {
+			totalFee.Add(totalFee, tx.Price)
+		}
+	}
+
 	reward := big.NewInt(100)
-	coinbaseTx := &transaction.Transaction{
+	reward.Add(reward, totalFee) // Add transaction fees to the reward
+
+	coinbaseTx := &Transaction{
 		From:      "COINBASE",
 		To:        miner,
 		Amount:    reward,
@@ -42,7 +51,7 @@ func (bc *Blockchain) MineBlock(prevHash []byte, index uint64, txs []*transactio
 		Signature: nil,
 	}
 
-	txs = append([]*transaction.Transaction{coinbaseTx}, txs...)
+	txs = append([]*Transaction{coinbaseTx}, txs...)
 
 	for {
 		header := fmt.Sprintf("%d%x%d%s%d", index, prevHash, timestamp, miner, nonce)
@@ -71,7 +80,7 @@ func (bc *Blockchain) MineBlock(prevHash []byte, index uint64, txs []*transactio
 
 // CreateGenesisBlock creates the first block in the blockchain with a coinbase transaction
 func CreateGenesisBlock(to string) *Block {
-	txs := []*transaction.Transaction{
+	txs := []*Transaction{
 		{
 			From:      "COINBASE",
 			To:        to,
@@ -113,7 +122,7 @@ func InitBlockchain(miner string) *Blockchain {
 }
 
 // serializeTxs serializes the transactions into a byte slice.
-func serializeTxs(txs []*transaction.Transaction) []byte {
+func serializeTxs(txs []*Transaction) []byte {
 	var data []byte
 
 	for _, tx := range txs {

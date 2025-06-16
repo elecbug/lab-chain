@@ -8,9 +8,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/elecbug/lab-chain/internal/block"
+	"github.com/elecbug/lab-chain/internal/blockchain"
 	"github.com/elecbug/lab-chain/internal/logger"
-	"github.com/elecbug/lab-chain/internal/transaction"
 	"github.com/elecbug/lab-chain/internal/user"
 	"github.com/elecbug/lab-chain/internal/wallet"
 )
@@ -29,7 +28,7 @@ func CLICommand(user *user.User) {
 		log.Infof("subscribed to transaction topic successfully")
 	}
 
-	transaction.RunSubscribeAndCollectTx(user.Context, txSub, user.MemPool)
+	blockchain.RunSubscribeAndCollectTx(user.Context, txSub, user.MemPool, user.Blockchain)
 
 	blkSub, err := user.BlockTopic.Subscribe()
 
@@ -40,7 +39,7 @@ func CLICommand(user *user.User) {
 		log.Infof("subscribed to block topic successfully")
 	}
 
-	block.RunSubscribeAndCollectBlock(user.Context, blkSub, user.Blockchain)
+	blockchain.RunSubscribeAndCollectBlock(user.Context, blkSub, user.Blockchain)
 
 	log.Infof("cli started. Type 'help' to see available commands.")
 
@@ -207,7 +206,7 @@ func txFunc(user *user.User, args []string) {
 		return
 	}
 
-	tx, err := transaction.CreateTx(user.CurrentPrivKey, to, big.NewInt(amount), big.NewInt(price), 0)
+	tx, err := blockchain.CreateTx(user.CurrentPrivKey, to, big.NewInt(amount), big.NewInt(price), 0)
 
 	if err != nil {
 		log.Errorf("failed to create transaction: %v", err)
@@ -217,7 +216,7 @@ func txFunc(user *user.User, args []string) {
 			tx.From, tx.To, tx.Amount.String(), tx.Price.String())
 	}
 
-	if err := transaction.PublishTx(user.Context, user.TxTopic, tx); err != nil {
+	if err := blockchain.PublishTx(user.Context, user.TxTopic, tx); err != nil {
 		log.Errorf("failed to publish transaction: %v", err)
 	} else {
 		log.Infof("transaction published successfully")
@@ -240,7 +239,7 @@ func mineFunc(user *user.User, args []string) {
 
 	b := user.Blockchain.MineBlock(last.Hash, last.Index+1, user.MemPool.PickTopTxs(20), user.CurrentAddress.Hex())
 
-	err := block.PublishBlock(user.Context, user.BlockTopic, b)
+	err := blockchain.PublishBlock(user.Context, user.BlockTopic, b)
 
 	if err != nil {
 		log.Errorf("failed to publish block: %v", err)
@@ -261,7 +260,7 @@ func genesisFunc(user *user.User, args []string) {
 		return
 	}
 
-	user.Blockchain = block.InitBlockchain(user.CurrentAddress.Hex())
+	user.Blockchain = blockchain.InitBlockchain(user.CurrentAddress.Hex())
 
 	log.Infof("genesis block created successfully: index %d, miner %s, nonce %d, hash %x",
 		user.Blockchain.Blocks[0].Index,
@@ -277,7 +276,7 @@ func genesisFunc(user *user.User, args []string) {
 	)
 
 	b := user.Blockchain.Blocks[0]
-	err := block.PublishBlock(user.Context, user.BlockTopic, b)
+	err := blockchain.PublishBlock(user.Context, user.BlockTopic, b)
 
 	if err != nil {
 		log.Errorf("failed to publish block: %v", err)

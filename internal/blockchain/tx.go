@@ -1,4 +1,4 @@
-package transaction
+package blockchain
 
 import (
 	"context"
@@ -79,7 +79,7 @@ func CreateTx(fromPriv *ecdsa.PrivateKey, to string, amount, price *big.Int, non
 func PublishTx(ctx context.Context, txTopic *pubsub.Topic, tx *Transaction) error {
 	log := logger.AppLogger
 
-	txBs, err := serialize(tx)
+	txBs, err := serializeTx(tx)
 
 	if err != nil {
 		return fmt.Errorf("failed to serialize transaction: %v", err)
@@ -101,7 +101,7 @@ func PublishTx(ctx context.Context, txTopic *pubsub.Topic, tx *Transaction) erro
 }
 
 // RunSubscribeAndCollectTx listens for incoming transactions on the pubsub subscription
-func RunSubscribeAndCollectTx(ctx context.Context, sub *pubsub.Subscription, mempool *Mempool) {
+func RunSubscribeAndCollectTx(ctx context.Context, sub *pubsub.Subscription, mempool *Mempool, chain *Blockchain) {
 	log := logger.AppLogger
 
 	go func() {
@@ -117,30 +117,35 @@ func RunSubscribeAndCollectTx(ctx context.Context, sub *pubsub.Subscription, mem
 				continue
 			}
 
-			tx, err := deserialize(msg.Data)
-
+			tx, err := deserializeTx(msg.Data)
 			if err != nil {
 				log.Warnf("invalid tx: failed to deserialize: %v", err)
 				continue
 			}
 
 			ok, err := tx.VerifySignature()
-
 			if err != nil || !ok {
 				log.Warnf("invalid tx: signature verification failed: %v", err)
 				continue
 			}
 
-			txID := string(tx.Signature) // or Hash()
-			mempool.mu.Lock()
+			if chain != nil {
+				required := new(big.Int).Add(tx.Amount, tx.Price)
+				balance := chain.GetBalance(tx.From)
+				if balance.Cmp(required) < 0 {
+					log.Warnf("invalid tx: insufficient balance. required: %s, actual: %s", required.String(), balance.String())
+					continue
+				}
+			}
 
+			txID := string(tx.Signature)
+			mempool.mu.Lock()
 			if _, exists := mempool.pool[txID]; !exists {
 				mempool.pool[txID] = tx
 				log.Infof("transaction received and stored: %s -> %s, amount: %s", tx.From, tx.To, tx.Amount.String())
 			} else {
 				log.Debugf("transaction already in mempool, skipping: %s", txID)
 			}
-
 			mempool.mu.Unlock()
 		}
 	}()
@@ -172,8 +177,8 @@ func (tx *Transaction) sign(privKey *ecdsa.PrivateKey) error {
 	return nil
 }
 
-// serialize and deserialize functions for transaction
-func serialize(tx *Transaction) ([]byte, error) {
+// serializeTx and deserialize functions for transaction
+func serializeTx(tx *Transaction) ([]byte, error) {
 	jsonBytes, err := json.Marshal(tx)
 
 	if err != nil {
@@ -183,8 +188,8 @@ func serialize(tx *Transaction) ([]byte, error) {
 	return jsonBytes, nil
 }
 
-// deserialize converts JSON bytes back into a Transaction object
-func deserialize(data []byte) (*Transaction, error) {
+// deserializeTx converts JSON bytes back into a Transaction object
+func deserializeTx(data []byte) (*Transaction, error) {
 	var tx Transaction
 
 	err := json.Unmarshal(data, &tx)

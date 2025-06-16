@@ -1,4 +1,4 @@
-package block
+package blockchain
 
 import (
 	"context"
@@ -6,7 +6,6 @@ import (
 	"fmt"
 
 	"github.com/elecbug/lab-chain/internal/logger"
-	"github.com/elecbug/lab-chain/internal/transaction"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 )
 
@@ -15,7 +14,7 @@ type Block struct {
 	Index        uint64 // Block height
 	PreviousHash []byte
 	Timestamp    int64
-	Transactions []*transaction.Transaction
+	Transactions []*Transaction
 	Miner        string
 	Nonce        uint64
 	Hash         []byte
@@ -25,7 +24,7 @@ type Block struct {
 func PublishBlock(ctx context.Context, blkTopic *pubsub.Topic, block *Block) error {
 	log := logger.AppLogger
 
-	txBs, err := serialize(block)
+	txBs, err := serializeBlock(block)
 
 	if err != nil {
 		return fmt.Errorf("failed to serialize transaction: %v", err)
@@ -58,7 +57,7 @@ func RunSubscribeAndCollectBlock(ctx context.Context, sub *pubsub.Subscription, 
 				continue
 			}
 
-			block, err := deserialize(msg.Data)
+			block, err := deserializeBlock(msg.Data)
 
 			if err != nil {
 				log.Warnf("invalid block received: cannot deserialize: %v", err)
@@ -77,7 +76,7 @@ func RunSubscribeAndCollectBlock(ctx context.Context, sub *pubsub.Subscription, 
 }
 
 // serialize and deserialize functions for block
-func serialize(tx *Block) ([]byte, error) {
+func serializeBlock(tx *Block) ([]byte, error) {
 	jsonBytes, err := json.Marshal(tx)
 
 	if err != nil {
@@ -88,7 +87,7 @@ func serialize(tx *Block) ([]byte, error) {
 }
 
 // deserialize converts JSON bytes back into a block object
-func deserialize(data []byte) (*Block, error) {
+func deserializeBlock(data []byte) (*Block, error) {
 	var tx Block
 
 	err := json.Unmarshal(data, &tx)

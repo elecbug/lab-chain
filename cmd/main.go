@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/elecbug/lab-chain/internal/blockchain"
 	"github.com/elecbug/lab-chain/internal/cfg"
 	"github.com/elecbug/lab-chain/internal/libp2p"
 	"github.com/elecbug/lab-chain/internal/logger"
 	"github.com/elecbug/lab-chain/internal/logging"
-	"github.com/elecbug/lab-chain/internal/transaction"
 	"github.com/elecbug/lab-chain/internal/user"
 	"github.com/libp2p/go-libp2p/core/crypto"
 )
@@ -102,7 +102,7 @@ func initGeneralNode(ctx context.Context, cfg cfg.Config, priv crypto.PrivKey) e
 		Blockchain:     nil,
 		TxTopic:        txTopic,
 		BlockTopic:     blkTopic,
-		MemPool:        transaction.NewMempool(),
+		MemPool:        blockchain.NewMempool(),
 		CurrentPrivKey: nil,
 		CurrentAddress: nil,
 	}
