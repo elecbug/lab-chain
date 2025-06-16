@@ -23,31 +23,6 @@ type Transaction struct {
 	Signature []byte   `json:"signature"` // Transaction signature
 }
 
-// VerifySignature verifies the transaction's signature
-func (tx *Transaction) VerifySignature() (bool, error) {
-	if tx.From == "COINBASE" {
-		// Coinbase transactions do not have a signature
-		return true, nil
-	}
-
-	hash := tx.hash()
-	sig := tx.Signature
-
-	if len(sig) != 65 {
-		return false, fmt.Errorf("invalid signature length")
-	}
-
-	pubKey, err := crypto.SigToPub(hash, sig)
-
-	if err != nil {
-		return false, fmt.Errorf("failed to recover public key from signature: %v", err)
-	}
-
-	derivedAddr := crypto.PubkeyToAddress(*pubKey)
-
-	return strings.EqualFold(derivedAddr.Hex(), tx.From), nil
-}
-
 // CreateTx creates a new transaction with the given parameters and signs it
 func CreateTx(fromPriv *ecdsa.PrivateKey, to string, amount, price *big.Int, chain *Blockchain) (*Transaction, error) {
 	log := logger.LabChainLogger
@@ -75,8 +50,33 @@ func CreateTx(fromPriv *ecdsa.PrivateKey, to string, amount, price *big.Int, cha
 	return tx, nil
 }
 
+// VerifySignature verifies the transaction's signature
+func (tx *Transaction) VerifySignature() (bool, error) {
+	if tx.From == "COINBASE" {
+		// Coinbase transactions do not have a signature
+		return true, nil
+	}
+
+	hash := tx.hash()
+	sig := tx.Signature
+
+	if len(sig) != 65 {
+		return false, fmt.Errorf("invalid signature length")
+	}
+
+	pubKey, err := crypto.SigToPub(hash, sig)
+
+	if err != nil {
+		return false, fmt.Errorf("failed to recover public key from signature: %v", err)
+	}
+
+	derivedAddr := crypto.PubkeyToAddress(*pubKey)
+
+	return strings.EqualFold(derivedAddr.Hex(), tx.From), nil
+}
+
 // PublishTx publishes a transaction to the specified pubsub topic
-func PublishTx(ctx context.Context, txTopic *pubsub.Topic, tx *Transaction) error {
+func (tx *Transaction) PublishTx(ctx context.Context, txTopic *pubsub.Topic) error {
 	log := logger.LabChainLogger
 
 	txBs, err := serializeTx(tx)
@@ -98,53 +98,6 @@ func PublishTx(ctx context.Context, txTopic *pubsub.Topic, tx *Transaction) erro
 	}
 
 	return nil
-}
-
-// RunSubscribeAndCollectTx listens for incoming transactions on the pubsub subscription
-func RunSubscribeAndCollectTx(ctx context.Context, sub *pubsub.Subscription, mempool *Mempool, chain *Blockchain) {
-	log := logger.LabChainLogger
-
-	go func() {
-		for {
-			msg, err := sub.Next(ctx)
-
-			if err != nil {
-				log.Errorf("failed to receive pubsub message: %v", err)
-				continue
-			}
-
-			tx, err := deserializeTx(msg.Data)
-			if err != nil {
-				log.Warnf("invalid tx: failed to deserialize: %v", err)
-				continue
-			}
-
-			ok, err := tx.VerifySignature()
-			if err != nil || !ok {
-				log.Warnf("invalid tx: signature verification failed: %v", err)
-				continue
-			}
-
-			if chain != nil {
-				required := new(big.Int).Add(tx.Amount, tx.Price)
-				balance := chain.GetBalance(tx.From)
-				if balance.Cmp(required) < 0 {
-					log.Warnf("invalid tx: insufficient balance. required: %s, actual: %s", required.String(), balance.String())
-					continue
-				}
-			}
-
-			txID := string(tx.Signature)
-			mempool.mu.Lock()
-			if _, exists := mempool.pool[txID]; !exists {
-				mempool.pool[txID] = tx
-				log.Infof("transaction received and stored: %s -> %s, amount: %s", tx.From, tx.To, tx.Amount.String())
-			} else {
-				log.Debugf("transaction already in mempool, skipping: %s", txID)
-			}
-			mempool.mu.Unlock()
-		}
-	}()
 }
 
 // hash computes the hash of the transaction for signing and verification
@@ -182,6 +135,18 @@ func serializeTx(tx *Transaction) ([]byte, error) {
 	}
 
 	return jsonBytes, nil
+}
+
+// serializeTxs serializes the transactions into a byte slice
+func serializeTxs(txs []*Transaction) []byte {
+	var data []byte
+
+	for _, tx := range txs {
+		b, _ := json.Marshal(tx)
+		data = append(data, b...)
+	}
+
+	return data
 }
 
 // deserializeTx converts JSON bytes back into a Transaction object

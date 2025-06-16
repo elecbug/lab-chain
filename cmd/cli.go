@@ -128,7 +128,7 @@ func chainFunc(user *user.User, args []string) {
 			fmt.Printf("subscribed to block topic successfully\n")
 		}
 
-		blockchain.RunSubscribeAndCollectBlock(user.Context, blkSub, user.MemPool, user.Blockchain)
+		blockchain.RunSubscribeAndCollectBlock(user.Context, user.BlockTopic, blkSub, user.MemPool, user.Blockchain)
 	default:
 		fmt.Printf("Unknown chain command. Use 'status' or 'save'\n")
 	}
@@ -186,8 +186,8 @@ func mkeyFunc(user *user.User, args []string) {
 
 			return
 		} else {
-			log.Infof("master key loaded successfully: %s", masterKey.String())
-			fmt.Printf("master key loaded successfully: %s\n", masterKey.String())
+			log.Infof("master key loaded successfully")
+			fmt.Printf("master key loaded successfully\n")
 		}
 
 		user.MasterKey = masterKey
@@ -306,7 +306,7 @@ func txFunc(user *user.User, args []string) {
 			tx.From, tx.To, tx.Amount.String(), tx.Price.String())
 	}
 
-	if err := blockchain.PublishTx(user.Context, user.TxTopic, tx); err != nil {
+	if err := tx.PublishTx(user.Context, user.TxTopic); err != nil {
 		log.Errorf("failed to publish transaction: %v", err)
 		fmt.Printf("failed to publish transaction: %v\n", err)
 
@@ -339,7 +339,7 @@ func mineFunc(user *user.User, args []string) {
 	b := user.Blockchain.MineBlock(last.Hash, last.Index+1, txs, user.CurrentAddress.Hex())
 	user.Blockchain.Blocks = append(user.Blockchain.Blocks, b)
 
-	err := blockchain.PublishBlock(user.Context, user.BlockTopic, b)
+	err := b.PublishBlock(user.Context, user.BlockTopic)
 
 	if err != nil {
 		log.Errorf("failed to publish block: %v", err)
@@ -384,7 +384,7 @@ func genesisFunc(user *user.User, args []string) {
 	)
 
 	b := user.Blockchain.Blocks[0]
-	err := blockchain.PublishBlock(user.Context, user.BlockTopic, b)
+	err := b.PublishBlock(user.Context, user.BlockTopic)
 
 	if err != nil {
 		log.Errorf("failed to publish block: %v", err)
@@ -423,5 +423,5 @@ func genesisFunc(user *user.User, args []string) {
 		fmt.Printf("subscribed to block topic successfully\n")
 	}
 
-	blockchain.RunSubscribeAndCollectBlock(user.Context, blkSub, user.MemPool, user.Blockchain)
+	blockchain.RunSubscribeAndCollectBlock(user.Context, user.BlockTopic, blkSub, user.MemPool, user.Blockchain)
 }

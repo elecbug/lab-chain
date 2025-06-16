@@ -13,17 +13,34 @@ import (
 	"github.com/elecbug/lab-chain/internal/logger"
 )
 
-// Blockchain represents the entire blockchain.
+// Blockchain represents the entire blockchain
 type Blockchain struct {
-	Blocks       []*Block   // Canonical chain
-	Difficulty   *big.Int   // Current PoW difficulty
-	longestIndex uint64     // Highest known block index
-	Mu           sync.Mutex // Mutex to protect concurrent access
+	Blocks            []*Block          // Canonical chain
+	Difficulty        *big.Int          // Current PoW difficulty
+	Mu                sync.Mutex        // Mutex to protect concurrent access
+	pendingBlocks     map[uint64]*Block // Cache for missing blocks
+	pendingForkBlocks map[uint64]*Block // Cache for pending fork blocks
 
 	// Optional: forks, orphan blocks, etc.
 	Forks map[uint64][]*Block // Index-based fork map
 }
 
+// InitBlockchain creates a new blockchain with a genesis block
+func InitBlockchain(miner string) *Blockchain {
+	genesis := createGenesisBlock(miner)
+
+	bc := &Blockchain{
+		Blocks:            []*Block{genesis},
+		Difficulty:        big.NewInt(1).Lsh(big.NewInt(1), 240),
+		Forks:             make(map[uint64][]*Block),
+		pendingBlocks:     make(map[uint64]*Block),
+		pendingForkBlocks: make(map[uint64]*Block),
+	}
+
+	return bc
+}
+
+// MineBlock mines a new block with the given parameters
 func (bc *Blockchain) MineBlock(prevHash []byte, index uint64, txs []*Transaction, miner string) *Block {
 	var nonce uint64
 	var hash []byte
@@ -78,62 +95,7 @@ func (bc *Blockchain) MineBlock(prevHash []byte, index uint64, txs []*Transactio
 	}
 }
 
-// CreateGenesisBlock creates the first block in the blockchain with a coinbase transaction
-func CreateGenesisBlock(to string) *Block {
-	txs := []*Transaction{
-		{
-			From:      "COINBASE",
-			To:        to,
-			Amount:    big.NewInt(1000), // Initial reward
-			Nonce:     0,
-			Price:     big.NewInt(0),
-			Signature: nil,
-		},
-	}
-
-	header := fmt.Sprintf("0%x%d%s%d", []byte{}, time.Now().Unix(), to, 0)
-	headerHash := sha256.Sum256([]byte(header))
-	fullData := append(headerHash[:], serializeTxs(txs)...)
-	hash := sha256.Sum256(fullData)
-
-	return &Block{
-		Index:        0,
-		PreviousHash: []byte{},
-		Timestamp:    time.Now().Unix(),
-		Transactions: txs,
-		Miner:        to,
-		Nonce:        0,
-		Hash:         hash[:],
-	}
-}
-
-// InitBlockchain creates a new blockchain with a genesis block
-func InitBlockchain(miner string) *Blockchain {
-	genesis := CreateGenesisBlock(miner)
-
-	bc := &Blockchain{
-		Blocks:       []*Block{genesis},
-		Difficulty:   big.NewInt(1).Lsh(big.NewInt(1), 240), // 초기 난이도 설정 (예: 2^240)
-		longestIndex: 0,
-		Forks:        make(map[uint64][]*Block),
-	}
-
-	return bc
-}
-
-// serializeTxs serializes the transactions into a byte slice.
-func serializeTxs(txs []*Transaction) []byte {
-	var data []byte
-
-	for _, tx := range txs {
-		b, _ := json.Marshal(tx)
-		data = append(data, b...)
-	}
-
-	return data
-}
-
-// adjustDifficulty adjusts the mining difficulty based on the time taken to mine the last few blocks.
+// adjustDifficulty adjusts the mining difficulty based on the time taken to mine the last few blocks
 func (bc *Blockchain) adjustDifficulty(targetIntervalSec int64, windowSize int) {
 	n := len(bc.Blocks)
 	if n <= windowSize {
@@ -230,49 +192,8 @@ func (bc *Blockchain) VerifyBlock(block *Block, previous *Block) bool {
 	return true
 }
 
-// HandleIncomingBlock verifies and integrates the block, resolving forks if necessary
-func (bc *Blockchain) HandleIncomingBlock(block *Block) error {
-	bc.Mu.Lock()
-	defer bc.Mu.Unlock()
-
-	n := len(bc.Blocks)
-
-	if n == 0 {
-		if bc.VerifyBlock(block, nil) {
-			return bc.addBlock(block)
-		}
-
-		return fmt.Errorf("genesis block invalid")
-	}
-
-	last := bc.Blocks[n-1]
-
-	if block.Index == last.Index+1 && bc.VerifyBlock(block, last) {
-		return bc.addBlock(block)
-	}
-
-	// Fork handling
-	if block.Index <= last.Index {
-		log := logger.LabChainLogger
-		log.Infof("received fork block: index %d (current: %d)", block.Index, last.Index)
-
-		// Check if this fork is longer
-		// (In practice, we need to track branches, here simplified)
-		if block.Index > bc.longestIndex {
-			log.Infof("switching to longer chain via fork block index %d", block.Index)
-			bc.Blocks = bc.Blocks[:block.Index] // truncate chain (simplified)
-
-			return bc.addBlock(block)
-		}
-
-		return fmt.Errorf("fork block ignored, not longer")
-	}
-
-	return fmt.Errorf("block rejected: invalid order or hash")
-}
-
 // GetBalance calculates the balance of a given address by iterating through all blocks,
-// while ignoring duplicate transactions (same hash).
+// while ignoring duplicate transactions (same hash)
 func (bc *Blockchain) GetBalance(address string) *big.Int {
 	balance := new(big.Int)
 	seen := make(map[string]bool) // track seen transaction hashes
@@ -334,10 +255,11 @@ func Load(path string) (*Blockchain, error) {
 	}
 
 	bc := &Blockchain{
-		Blocks:       temp.Blocks,
-		Difficulty:   temp.Difficulty,
-		longestIndex: temp.longestIndex,
-		Forks:        temp.Forks,
+		Blocks:            temp.Blocks,
+		Difficulty:        temp.Difficulty,
+		Forks:             temp.Forks,
+		pendingBlocks:     make(map[uint64]*Block),
+		pendingForkBlocks: make(map[uint64]*Block),
 	}
 
 	return bc, nil
@@ -354,4 +276,29 @@ func (bc *Blockchain) GetNonce(address string) uint64 {
 		}
 	}
 	return nonce
+}
+
+// GetBlockByIndex returns the block at the specified index, or nil if not found
+func (bc *Blockchain) GetBlockByIndex(i uint64) *Block {
+	bc.Mu.Lock()
+	defer bc.Mu.Unlock()
+
+	if i < uint64(len(bc.Blocks)) {
+		return bc.Blocks[i]
+	}
+	return nil
+}
+
+// GetBlockByHash searches the chain for a block with the given hash.
+// Returns the block if found, or nil otherwise.
+func (bc *Blockchain) GetBlockByHash(hash []byte) *Block {
+	bc.Mu.Lock()
+	defer bc.Mu.Unlock()
+
+	for _, blk := range bc.Blocks {
+		if string(blk.Hash) == string(hash) {
+			return blk
+		}
+	}
+	return nil
 }

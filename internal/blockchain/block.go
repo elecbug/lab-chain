@@ -2,14 +2,16 @@ package blockchain
 
 import (
 	"context"
-	"encoding/json"
+	"crypto/sha256"
 	"fmt"
+	"math/big"
+	"time"
 
 	"github.com/elecbug/lab-chain/internal/logger"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 )
 
-// Block represents a block in the blockchain.
+// Block represents a block in the blockchain
 type Block struct {
 	Index        uint64 // Block height
 	PreviousHash []byte
@@ -20,85 +22,62 @@ type Block struct {
 	Hash         []byte
 }
 
-// PublishBlock serializes the block and publishes it to the pubsub topic.
-func PublishBlock(ctx context.Context, blkTopic *pubsub.Topic, block *Block) error {
+// PublishBlock serializes the block into a BlockMessage and publishes it to the pubsub topic
+func (block *Block) PublishBlock(ctx context.Context, blkTopic *pubsub.Topic) error {
 	log := logger.LabChainLogger
 
-	txBs, err := serializeBlock(block)
-
-	if err != nil {
-		return fmt.Errorf("failed to serialize transaction: %v", err)
-	} else {
-		log.Infof("block serialized successfully: index: %d, miner: %s, nonce: %d, hash: %x",
-			block.Index, block.Miner, block.Nonce, block.Hash)
+	// Wrap the block into a BlockMessage
+	msg := &BlockMessage{
+		Type:  "BLOCK",
+		Block: block,
 	}
 
-	err = blkTopic.Publish(ctx, txBs)
-
+	// Serialize the BlockMessage
+	msgBytes, err := serializeBlockMessage(msg)
 	if err != nil {
-		return fmt.Errorf("failed to publish transaction: %v", err)
-	} else {
-		log.Infof("block published successfully: index: %d, miner: %s, nonce: %d, hash: %x",
-			block.Index, block.Miner, block.Nonce, block.Hash)
+		return fmt.Errorf("failed to serialize block message: %v", err)
 	}
+
+	log.Infof("block serialized successfully: index: %d, miner: %s, nonce: %d, hash: %x",
+		block.Index, block.Miner, block.Nonce, block.Hash)
+
+	// Publish the message
+	err = blkTopic.Publish(ctx, msgBytes)
+	if err != nil {
+		return fmt.Errorf("failed to publish block message: %v", err)
+	}
+
+	log.Infof("block published successfully: index: %d, miner: %s, nonce: %d, hash: %x",
+		block.Index, block.Miner, block.Nonce, block.Hash)
 
 	return nil
 }
 
-// RunSubscribeAndCollectBlock listens for incoming blocks and adds them to the chain if valid or handles fork resolution
-func RunSubscribeAndCollectBlock(ctx context.Context, sub *pubsub.Subscription, mempool *Mempool, chain *Blockchain) {
-	log := logger.LabChainLogger
-
-	go func() {
-		for {
-			msg, err := sub.Next(ctx)
-			if err != nil {
-				log.Errorf("failed to receive block: %v", err)
-				continue
-			}
-
-			block, err := deserializeBlock(msg.Data)
-			if err != nil {
-				log.Warnf("invalid block received: cannot deserialize: %v", err)
-				continue
-			}
-
-			log.Infof("received block: index %d, miner %s", block.Index, block.Miner)
-
-			if err := chain.HandleIncomingBlock(block); err != nil {
-				log.Warnf("incoming block rejected: %v", err)
-			} else {
-				log.Infof("block accepted into chain: index %d, hash: %x", block.Index, block.Hash)
-
-				// Remove block's transactions from mempool
-				for _, tx := range block.Transactions {
-					mempool.Remove(tx)
-				}
-			}
-		}
-	}()
-}
-
-// serialize and deserialize functions for block
-func serializeBlock(tx *Block) ([]byte, error) {
-	jsonBytes, err := json.Marshal(tx)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to serialize transaction: %v", err)
+// createGenesisBlock creates the first block in the blockchain with a coinbase transaction
+func createGenesisBlock(to string) *Block {
+	txs := []*Transaction{
+		{
+			From:      "COINBASE",
+			To:        to,
+			Amount:    big.NewInt(1000), // Initial reward
+			Nonce:     0,
+			Price:     big.NewInt(0),
+			Signature: nil,
+		},
 	}
 
-	return jsonBytes, nil
-}
+	header := fmt.Sprintf("0%x%d%s%d", []byte{}, time.Now().Unix(), to, 0)
+	headerHash := sha256.Sum256([]byte(header))
+	fullData := append(headerHash[:], serializeTxs(txs)...)
+	hash := sha256.Sum256(fullData)
 
-// deserialize converts JSON bytes back into a block object
-func deserializeBlock(data []byte) (*Block, error) {
-	var tx Block
-
-	err := json.Unmarshal(data, &tx)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to deserialize transaction: %v", err)
+	return &Block{
+		Index:        0,
+		PreviousHash: []byte{},
+		Timestamp:    time.Now().Unix(),
+		Transactions: txs,
+		Miner:        to,
+		Nonce:        0,
+		Hash:         hash[:],
 	}
-
-	return &tx, nil
 }
