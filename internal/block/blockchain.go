@@ -36,7 +36,7 @@ func (bc *Blockchain) MineBlock(prevHash []byte, index uint64, txs []*transactio
 	for {
 		header := fmt.Sprintf("%d%x%d%s%d", index, prevHash, timestamp, miner, nonce)
 		headerHash := sha256.Sum256([]byte(header))
-		fullData := append(headerHash[:], serializeTxs(txs)...) // transaction hash 포함
+		fullData := append(headerHash[:], serializeTxs(txs)...)
 
 		digest := sha256.Sum256(fullData)
 		hash = digest[:]
@@ -56,6 +56,18 @@ func (bc *Blockchain) MineBlock(prevHash []byte, index uint64, txs []*transactio
 		Nonce:        nonce,
 		Hash:         hash,
 	}
+}
+
+// serializeTxs serializes the transactions into a byte slice.
+func serializeTxs(txs []*transaction.Transaction) []byte {
+	var data []byte
+
+	for _, tx := range txs {
+		b, _ := json.Marshal(tx)
+		data = append(data, b...)
+	}
+
+	return data
 }
 
 // adjustDifficulty adjusts the mining difficulty based on the time taken to mine the last few blocks.
@@ -113,6 +125,19 @@ func (bc *Blockchain) VerifyBlock(block *Block, previous *Block) bool {
 		}
 	}
 
+	for _, tx := range block.Transactions {
+		ok, err := tx.VerifySignature()
+		if err != nil || !ok {
+			return false
+		}
+
+		required := new(big.Int).Add(tx.Amount, tx.Price)
+		balance := bc.GetBalance(tx.From)
+		if balance.Cmp(required) < 0 {
+			return false
+		}
+	}
+
 	return true
 }
 
@@ -153,6 +178,22 @@ func (bc *Blockchain) HandleIncomingBlock(block *Block) error {
 	}
 
 	return fmt.Errorf("block rejected: invalid order or hash")
+}
+
+// GetBalance calculates the balance of a given address by iterating through all blocks
+func (bc *Blockchain) GetBalance(address string) *big.Int {
+	balance := new(big.Int)
+	for _, blk := range bc.Blocks {
+		for _, tx := range blk.Transactions {
+			if tx.From == address {
+				balance.Sub(balance, tx.Amount)
+			}
+			if tx.To == address {
+				balance.Add(balance, tx.Amount)
+			}
+		}
+	}
+	return balance
 }
 
 // addBlock appends a verified block to the chain

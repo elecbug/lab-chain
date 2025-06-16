@@ -76,18 +76,6 @@ func RunSubscribeAndCollectBlock(ctx context.Context, sub *pubsub.Subscription, 
 	}()
 }
 
-// serializeTxs serializes the transactions into a byte slice.
-func serializeTxs(txs []*transaction.Transaction) []byte {
-	var data []byte
-
-	for _, tx := range txs {
-		b, _ := json.Marshal(tx)
-		data = append(data, b...)
-	}
-
-	return data
-}
-
 // serialize and deserialize functions for block
 func serialize(tx *Block) ([]byte, error) {
 	jsonBytes, err := json.Marshal(tx)
