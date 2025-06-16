@@ -49,8 +49,8 @@ func (tx *Transaction) VerifySignature() (bool, error) {
 }
 
 // CreateTx creates a new transaction with the given parameters and signs it
-func CreateTx(fromPriv *ecdsa.PrivateKey, to string, amount, price *big.Int, nonce uint64) (*Transaction, error) {
-	log := logger.AppLogger
+func CreateTx(fromPriv *ecdsa.PrivateKey, to string, amount, price *big.Int, chain *Blockchain) (*Transaction, error) {
+	log := logger.LabChainLogger
 
 	pubKey := fromPriv.Public().(*ecdsa.PublicKey)
 	fromAddr := crypto.PubkeyToAddress(*pubKey)
@@ -59,7 +59,7 @@ func CreateTx(fromPriv *ecdsa.PrivateKey, to string, amount, price *big.Int, non
 		From:   fromAddr.Hex(),
 		To:     to,
 		Amount: amount,
-		Nonce:  nonce,
+		Nonce:  chain.GetNonce(fromAddr.Hex()),
 		Price:  price,
 	}
 
@@ -77,7 +77,7 @@ func CreateTx(fromPriv *ecdsa.PrivateKey, to string, amount, price *big.Int, non
 
 // PublishTx publishes a transaction to the specified pubsub topic
 func PublishTx(ctx context.Context, txTopic *pubsub.Topic, tx *Transaction) error {
-	log := logger.AppLogger
+	log := logger.LabChainLogger
 
 	txBs, err := serializeTx(tx)
 
@@ -102,7 +102,7 @@ func PublishTx(ctx context.Context, txTopic *pubsub.Topic, tx *Transaction) erro
 
 // RunSubscribeAndCollectTx listens for incoming transactions on the pubsub subscription
 func RunSubscribeAndCollectTx(ctx context.Context, sub *pubsub.Subscription, mempool *Mempool, chain *Blockchain) {
-	log := logger.AppLogger
+	log := logger.LabChainLogger
 
 	go func() {
 		for {
@@ -110,10 +110,6 @@ func RunSubscribeAndCollectTx(ctx context.Context, sub *pubsub.Subscription, mem
 
 			if err != nil {
 				log.Errorf("failed to receive pubsub message: %v", err)
-				continue
-			}
-
-			if msg.ReceivedFrom == msg.GetFrom() {
 				continue
 			}
 

@@ -1,4 +1,5 @@
 sudo docker run \
+    -it \
     --rm \
     --name $1 \
     --network lab-chain-network \

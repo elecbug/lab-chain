@@ -81,7 +81,7 @@ func initGeneralNode(ctx context.Context, cfg cfg.Config, priv crypto.PrivKey) e
 		return fmt.Errorf("failed to create Kademlia DHT: %v", err)
 	}
 
-	txTopic, blkTopic, err := libp2p.SetGossipSub(ctx, h)
+	blkTopic, txTopic, err := libp2p.SetGossipSub(ctx, h)
 
 	if err != nil {
 		return fmt.Errorf("failed to create GossipSub: %v", err)
@@ -109,7 +109,7 @@ func initGeneralNode(ctx context.Context, cfg cfg.Config, priv crypto.PrivKey) e
 
 	CLICommand(&user)
 
-	select {}
+	return nil
 }
 
 func initBootNode(ctx context.Context, cfg cfg.Config, priv crypto.PrivKey) error {

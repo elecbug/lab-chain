@@ -163,42 +163,68 @@ func (bc *Blockchain) adjustDifficulty(targetIntervalSec int64, windowSize int) 
 	bc.Difficulty = newDifficulty
 }
 
-// VerifyBlock checks if a block is valid compared to the current chain state
+// VerifyBlock checks if a block is valid against the previous block and the current difficulty
 func (bc *Blockchain) VerifyBlock(block *Block, previous *Block) bool {
+	log := logger.LabChainLogger
+
 	if previous == nil {
-		return block.Index == 0
+		if block.Index != 0 {
+			log.Warn("genesis block with wrong index")
+			return false
+		}
+		return true
 	}
 
 	if block.Index != previous.Index+1 {
+		log.Infof("block index mismatch: got %d, expected %d", block.Index, previous.Index+1)
 		return false
 	}
 	if !bytes.Equal(block.PreviousHash, previous.Hash) {
+		log.Infof("previous hash mismatch")
 		return false
 	}
 
 	hashInt := new(big.Int).SetBytes(block.Hash)
 	if hashInt.Cmp(bc.Difficulty) >= 0 {
+		log.Infof("block does not meet difficulty: hash=%x, difficulty=%x", block.Hash, bc.Difficulty)
 		return false
 	}
 
-	for _, tx := range block.Transactions {
+	expectedNonces := make(map[string]uint64)
+
+	for i, tx := range block.Transactions {
 		ok, err := tx.VerifySignature()
 		if err != nil || !ok {
+			log.Infof("tx[%d] signature invalid: %v", i, err)
 			return false
 		}
 	}
 
-	for _, tx := range block.Transactions {
-		ok, err := tx.VerifySignature()
-		if err != nil || !ok {
-			return false
+	for i, tx := range block.Transactions {
+		if tx.From == "COINBASE" {
+			continue
 		}
 
+		// Balance check
 		required := new(big.Int).Add(tx.Amount, tx.Price)
 		balance := bc.GetBalance(tx.From)
 		if balance.Cmp(required) < 0 {
+			log.Infof("tx[%d] insufficient balance: from=%s, need=%s, have=%s", i, tx.From, required.String(), balance.String())
 			return false
 		}
+
+		// Nonce check
+		expected, ok := expectedNonces[tx.From]
+		if !ok {
+			expected = bc.GetNonce(tx.From)
+		}
+
+		if tx.Nonce != expected {
+			log.Infof("tx[%d] invalid nonce: from=%s, got=%d, expected=%d", i, tx.From, tx.Nonce, expected)
+			return false
+		}
+
+		expectedNonces[tx.From] = expected + 1
 	}
 
 	return true
@@ -210,6 +236,7 @@ func (bc *Blockchain) HandleIncomingBlock(block *Block) error {
 	defer bc.Mu.Unlock()
 
 	n := len(bc.Blocks)
+
 	if n == 0 {
 		if bc.VerifyBlock(block, nil) {
 			return bc.addBlock(block)
@@ -226,7 +253,7 @@ func (bc *Blockchain) HandleIncomingBlock(block *Block) error {
 
 	// Fork handling
 	if block.Index <= last.Index {
-		log := logger.AppLogger
+		log := logger.LabChainLogger
 		log.Infof("received fork block: index %d (current: %d)", block.Index, last.Index)
 
 		// Check if this fork is longer
@@ -234,6 +261,7 @@ func (bc *Blockchain) HandleIncomingBlock(block *Block) error {
 		if block.Index > bc.longestIndex {
 			log.Infof("switching to longer chain via fork block index %d", block.Index)
 			bc.Blocks = bc.Blocks[:block.Index] // truncate chain (simplified)
+
 			return bc.addBlock(block)
 		}
 
@@ -243,11 +271,22 @@ func (bc *Blockchain) HandleIncomingBlock(block *Block) error {
 	return fmt.Errorf("block rejected: invalid order or hash")
 }
 
-// GetBalance calculates the balance of a given address by iterating through all blocks
+// GetBalance calculates the balance of a given address by iterating through all blocks,
+// while ignoring duplicate transactions (same hash).
 func (bc *Blockchain) GetBalance(address string) *big.Int {
 	balance := new(big.Int)
+	seen := make(map[string]bool) // track seen transaction hashes
+
 	for _, blk := range bc.Blocks {
 		for _, tx := range blk.Transactions {
+			txHash := string(tx.hash())
+
+			if seen[txHash] {
+				continue // skip duplicate transaction
+			}
+
+			seen[txHash] = true
+
 			if tx.From == address {
 				balance.Sub(balance, tx.Amount)
 			}
@@ -256,6 +295,7 @@ func (bc *Blockchain) GetBalance(address string) *big.Int {
 			}
 		}
 	}
+
 	return balance
 }
 
@@ -280,26 +320,38 @@ func (bc *Blockchain) Save(path string) error {
 }
 
 // Load reads blockchain data from a file and replaces the in-memory state
-func (bc *Blockchain) Load(path string) error {
-	bc.Mu.Lock()
-	defer bc.Mu.Unlock()
-
+func Load(path string) (*Blockchain, error) {
 	data, err := os.ReadFile(path)
 
 	if err != nil {
-		return fmt.Errorf("failed to read blockchain file: %v", err)
+		return nil, fmt.Errorf("failed to read blockchain file: %v", err)
 	}
 
 	temp := &Blockchain{}
 
 	if err := json.Unmarshal(data, temp); err != nil {
-		return fmt.Errorf("failed to unmarshal blockchain: %v", err)
+		return nil, fmt.Errorf("failed to unmarshal blockchain: %v", err)
 	}
 
-	bc.Blocks = temp.Blocks
-	bc.Difficulty = temp.Difficulty
-	bc.longestIndex = temp.longestIndex
-	bc.Forks = temp.Forks
+	bc := &Blockchain{
+		Blocks:       temp.Blocks,
+		Difficulty:   temp.Difficulty,
+		longestIndex: temp.longestIndex,
+		Forks:        temp.Forks,
+	}
 
-	return nil
+	return bc, nil
+}
+
+// GetNonce calculates the nonce for a given address by counting the number of transactions sent from that address
+func (bc *Blockchain) GetNonce(address string) uint64 {
+	var nonce uint64
+	for _, blk := range bc.Blocks {
+		for _, tx := range blk.Transactions {
+			if tx.From == address {
+				nonce++
+			}
+		}
+	}
+	return nonce
 }

@@ -22,7 +22,7 @@ type Block struct {
 
 // PublishBlock serializes the block and publishes it to the pubsub topic.
 func PublishBlock(ctx context.Context, blkTopic *pubsub.Topic, block *Block) error {
-	log := logger.AppLogger
+	log := logger.LabChainLogger
 
 	txBs, err := serializeBlock(block)
 
@@ -46,8 +46,8 @@ func PublishBlock(ctx context.Context, blkTopic *pubsub.Topic, block *Block) err
 }
 
 // RunSubscribeAndCollectBlock listens for incoming blocks and adds them to the chain if valid or handles fork resolution
-func RunSubscribeAndCollectBlock(ctx context.Context, sub *pubsub.Subscription, chain *Blockchain) {
-	log := logger.AppLogger
+func RunSubscribeAndCollectBlock(ctx context.Context, sub *pubsub.Subscription, mempool *Mempool, chain *Blockchain) {
+	log := logger.LabChainLogger
 
 	go func() {
 		for {
@@ -58,7 +58,6 @@ func RunSubscribeAndCollectBlock(ctx context.Context, sub *pubsub.Subscription, 
 			}
 
 			block, err := deserializeBlock(msg.Data)
-
 			if err != nil {
 				log.Warnf("invalid block received: cannot deserialize: %v", err)
 				continue
@@ -70,6 +69,11 @@ func RunSubscribeAndCollectBlock(ctx context.Context, sub *pubsub.Subscription, 
 				log.Warnf("incoming block rejected: %v", err)
 			} else {
 				log.Infof("block accepted into chain: index %d, hash: %x", block.Index, block.Hash)
+
+				// Remove block's transactions from mempool
+				for _, tx := range block.Transactions {
+					mempool.Remove(tx)
+				}
 			}
 		}
 	}()

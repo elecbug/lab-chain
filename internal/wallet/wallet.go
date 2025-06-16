@@ -51,7 +51,7 @@ func SaveMasterKey(file string, masterKey *bip32.Key) error {
 
 	serialized := masterKey.String()
 
-	if err := os.WriteFile(fmt.Sprintf("%s.master", file), []byte(serialized), 0600); err != nil {
+	if err := os.WriteFile(file, []byte(serialized), 0600); err != nil {
 		return fmt.Errorf("failed to save master key: %v", err)
 	} else {
 		log.Infof("master key saved to file successfully")
@@ -64,7 +64,7 @@ func SaveMasterKey(file string, masterKey *bip32.Key) error {
 func LoadMasterKey(file string) (*bip32.Key, error) {
 	log := logger.AppLogger
 
-	data, err := os.ReadFile(fmt.Sprintf("%s.master", file))
+	data, err := os.ReadFile(file)
 
 	if err != nil {
 		return nil, fmt.Errorf("failed to read master key file: %v", err)
