@@ -25,6 +25,11 @@ type Transaction struct {
 
 // VerifySignature verifies the transaction's signature
 func (tx *Transaction) VerifySignature() (bool, error) {
+	if tx.From == "COINBASE" {
+		// Coinbase transactions do not have a signature
+		return true, nil
+	}
+
 	hash := tx.hash()
 	sig := tx.Signature
 

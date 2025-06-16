@@ -25,13 +25,24 @@ type Blockchain struct {
 	Forks map[uint64][]*Block // Index-based fork map
 }
 
-// MineBlock creates a new block with the given parameters.
 func (bc *Blockchain) MineBlock(prevHash []byte, index uint64, txs []*transaction.Transaction, miner string) *Block {
 	var nonce uint64
 	var hash []byte
 	timestamp := time.Now().Unix()
 	bc.adjustDifficulty(20, 10)
 	target := bc.Difficulty
+
+	reward := big.NewInt(100)
+	coinbaseTx := &transaction.Transaction{
+		From:      "COINBASE",
+		To:        miner,
+		Amount:    reward,
+		Nonce:     0,
+		Price:     big.NewInt(0),
+		Signature: nil,
+	}
+
+	txs = append([]*transaction.Transaction{coinbaseTx}, txs...)
 
 	for {
 		header := fmt.Sprintf("%d%x%d%s%d", index, prevHash, timestamp, miner, nonce)

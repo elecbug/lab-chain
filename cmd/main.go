@@ -8,6 +8,8 @@ import (
 	"github.com/elecbug/lab-chain/internal/libp2p"
 	"github.com/elecbug/lab-chain/internal/logger"
 	"github.com/elecbug/lab-chain/internal/logging"
+	"github.com/elecbug/lab-chain/internal/transaction"
+	"github.com/elecbug/lab-chain/internal/user"
 	"github.com/libp2p/go-libp2p/core/crypto"
 )
 
@@ -79,7 +81,7 @@ func initGeneralNode(ctx context.Context, cfg cfg.Config, priv crypto.PrivKey) e
 		return fmt.Errorf("failed to create Kademlia DHT: %v", err)
 	}
 
-	_, _, err = libp2p.SetGossipSub(ctx, h)
+	txTopic, blkTopic, err := libp2p.SetGossipSub(ctx, h)
 
 	if err != nil {
 		return fmt.Errorf("failed to create GossipSub: %v", err)
@@ -93,6 +95,19 @@ func initGeneralNode(ctx context.Context, cfg cfg.Config, priv crypto.PrivKey) e
 	}
 
 	log.Infof("libp2p host listening on %v", addrs)
+
+	user := user.User{
+		Context:        ctx,
+		MasterKey:      nil,
+		Blockchain:     nil,
+		TxTopic:        txTopic,
+		BlockTopic:     blkTopic,
+		MemPool:        transaction.NewMempool(),
+		CurrentPrivKey: nil,
+		CurrentAddress: nil,
+	}
+
+	CLICommand(&user)
 
 	select {}
 }

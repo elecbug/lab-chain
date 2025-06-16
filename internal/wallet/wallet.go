@@ -81,8 +81,8 @@ func LoadMasterKey(file string) (*bip32.Key, error) {
 	return loadedKey, nil
 }
 
-// GenerateWallet generates a BIP-44 key pair for the specified index
-func GenerateWallet(masterKey *bip32.Key, index int) (*ecdsa.PrivateKey, *common.Address, error) {
+// GenerateAddress generates a BIP-44 key pair for the specified index
+func GenerateAddress(masterKey *bip32.Key, index int) (*ecdsa.PrivateKey, *common.Address, error) {
 	log := logger.AppLogger
 
 	purpose, _ := masterKey.NewChildKey(44 + bip32.FirstHardenedChild)
