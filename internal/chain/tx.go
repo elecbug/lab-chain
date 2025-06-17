@@ -1,4 +1,4 @@
-package blockchain
+package chain
 
 import (
 	"context"
@@ -24,7 +24,7 @@ type Transaction struct {
 }
 
 // CreateTx creates a new transaction with the given parameters and signs it
-func CreateTx(fromPriv *ecdsa.PrivateKey, to string, amount, price *big.Int, chain *Blockchain) (*Transaction, error) {
+func CreateTx(fromPriv *ecdsa.PrivateKey, to string, amount, price *big.Int, chain *Chain) (*Transaction, error) {
 	log := logger.LabChainLogger
 
 	pubKey := fromPriv.Public().(*ecdsa.PublicKey)

@@ -1,11 +1,15 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"fmt"
+	"os"
+	"strings"
 
-	"github.com/elecbug/lab-chain/internal/blockchain"
 	"github.com/elecbug/lab-chain/internal/cfg"
+	"github.com/elecbug/lab-chain/internal/chain"
+	"github.com/elecbug/lab-chain/internal/cli"
 	"github.com/elecbug/lab-chain/internal/libp2p"
 	"github.com/elecbug/lab-chain/internal/logger"
 	"github.com/elecbug/lab-chain/internal/logging"
@@ -99,15 +103,15 @@ func initGeneralNode(ctx context.Context, cfg cfg.Config, priv crypto.PrivKey) e
 	user := user.User{
 		Context:        ctx,
 		MasterKey:      nil,
-		Blockchain:     nil,
+		Chain:          nil,
 		TxTopic:        txTopic,
 		BlockTopic:     blkTopic,
-		MemPool:        blockchain.NewMempool(),
+		MemPool:        chain.NewMempool(),
 		CurrentPrivKey: nil,
 		CurrentAddress: nil,
 	}
 
-	CLICommand(&user)
+	cliCommand(&user)
 
 	return nil
 }
@@ -148,4 +152,42 @@ func initBootNode(ctx context.Context, cfg cfg.Config, priv crypto.PrivKey) erro
 	log.Infof("libp2p host listening on %v", addrs)
 
 	select {}
+}
+
+// cliCommand defines the command-line interface for blockchain operations
+func cliCommand(user *user.User) {
+	scanner := bufio.NewScanner(os.Stdin)
+
+	fmt.Printf("Cli started. Type 'help' to see available commands.\n")
+
+	for {
+		fmt.Print("$ ")
+		if !scanner.Scan() {
+			break
+		}
+		input := scanner.Text()
+		args := strings.Fields(input)
+		if len(args) == 0 {
+			continue
+		}
+
+		switch args[0] {
+		case "help":
+		case "exit":
+			return
+		case "mkey":
+			cli.MkeyFunc(user, args)
+		case "wallet":
+			cli.WalletFunc(user, args)
+		case "tx":
+			cli.TxFunc(user, args)
+		case "mine":
+			cli.MineFunc(user, args)
+		case "chain":
+			cli.ChainFunc(user, args)
+
+		default:
+			fmt.Printf("Unknown command. Type 'help' for options.\n")
+		}
+	}
 }

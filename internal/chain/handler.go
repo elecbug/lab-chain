@@ -1,4 +1,4 @@
-package blockchain
+package chain
 
 import (
 	"bytes"
@@ -11,7 +11,7 @@ import (
 )
 
 // RunSubscribeAndCollectTx listens for incoming transactions on the pubsub subscription
-func RunSubscribeAndCollectTx(ctx context.Context, sub *pubsub.Subscription, mempool *Mempool, chain *Blockchain) {
+func RunSubscribeAndCollectTx(ctx context.Context, sub *pubsub.Subscription, mempool *Mempool, chain *Chain) {
 	log := logger.LabChainLogger
 
 	go func() {
@@ -58,7 +58,7 @@ func RunSubscribeAndCollectTx(ctx context.Context, sub *pubsub.Subscription, mem
 }
 
 // RunSubscribeAndCollectBlock listens for incoming blocks and processes them accordingly
-func RunSubscribeAndCollectBlock(ctx context.Context, topic *pubsub.Topic, sub *pubsub.Subscription, mempool *Mempool, chain *Blockchain) {
+func RunSubscribeAndCollectBlock(ctx context.Context, topic *pubsub.Topic, sub *pubsub.Subscription, mempool *Mempool, chain *Chain) {
 	log := logger.LabChainLogger
 
 	go func() {
@@ -118,7 +118,7 @@ func RunSubscribeAndCollectBlock(ctx context.Context, topic *pubsub.Topic, sub *
 
 // handleIncomingBlock handles incoming blocks and detects potential forks
 // If a longer valid fork is found, switches to that chain
-func (bc *Blockchain) handleIncomingBlock(ctx context.Context, block *Block, blkTopic *pubsub.Topic) error {
+func (bc *Chain) handleIncomingBlock(ctx context.Context, block *Block, blkTopic *pubsub.Topic) error {
 	bc.Mu.Lock()
 	defer bc.Mu.Unlock()
 
