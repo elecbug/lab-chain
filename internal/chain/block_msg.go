@@ -1,4 +1,4 @@
-package blockchain
+package chain
 
 import "encoding/json"
 
@@ -23,3 +23,9 @@ func deserializeBlockMessage(data []byte) (*BlockMessage, error) {
 	}
 	return &msg, nil
 }
+
+const (
+	BlockMsgTypeBlock = "BLOCK"
+	BlockMsgTypeReq   = "REQ"
+	BlockMsgTypeResp  = "RESP"
+)

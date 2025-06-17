@@ -1,4 +1,4 @@
-package blockchain
+package chain
 
 import (
 	"context"
@@ -29,7 +29,7 @@ func (block *Block) PublishBlock(ctx context.Context, blkTopic *pubsub.Topic) er
 
 	// Wrap the block into a BlockMessage
 	msg := &BlockMessage{
-		Type:  "BLOCK",
+		Type:  BlockMsgTypeBlock,
 		Block: block,
 	}
 
@@ -58,7 +58,7 @@ func (block *Block) PublishBlock(ctx context.Context, blkTopic *pubsub.Topic) er
 func createGenesisBlock(to string) *Block {
 	txs := []*Transaction{
 		{
-			From:      "COINBASE",
+			From:      COINBASE,
 			To:        to,
 			Amount:    big.NewInt(1000), // Initial reward
 			Nonce:     0,

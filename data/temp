@@ -1,19 +1,20 @@
-mkey load data/node1.mkey
+master-key load data/node1.mkey
 wallet set 0
-genesis
+mine genesis
 chain save data/genesis.chain
 
-mine
-mine
-tx 0x52C88043bC4aEA30886ef53Aaad482c202e61754 10 10
-tx 0x52C88043bC4aEA30886ef53Aaad482c202e61754 10 10
-tx 0x52C88043bC4aEA30886ef53Aaad482c202e61754 10 10
-tx 0x52C88043bC4aEA30886ef53Aaad482c202e61754 10 10
-mine
-mine
-
-mkey load data/node2.mkey
+master-key load data/node2.mkey
 wallet set 0
 chain load data/genesis.chain
+
+mine
+tx 0x52C88043bC4aEA30886ef53Aaad482c202e61754 10 10
+mine
+tx 0x52C88043bC4aEA30886ef53Aaad482c202e61754 20 20
+mine
+tx 0x52C88043bC4aEA30886ef53Aaad482c202e61754 30 30
+mine
+tx 0x52C88043bC4aEA30886ef53Aaad482c202e61754 40 40
+mine
 
 chain save data/temp.chain

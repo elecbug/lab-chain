@@ -1,4 +1,4 @@
-package blockchain
+package chain
 
 import (
 	"context"
@@ -13,6 +13,8 @@ import (
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 )
 
+const COINBASE = "COINBASE"
+
 // Transaction represents a transaction in the lab-chain network
 type Transaction struct {
 	From      string   `json:"from"`      // Sender's address
@@ -24,7 +26,7 @@ type Transaction struct {
 }
 
 // CreateTx creates a new transaction with the given parameters and signs it
-func CreateTx(fromPriv *ecdsa.PrivateKey, to string, amount, price *big.Int, chain *Blockchain) (*Transaction, error) {
+func CreateTx(fromPriv *ecdsa.PrivateKey, to string, amount, price *big.Int, chain *Chain) (*Transaction, error) {
 	log := logger.LabChainLogger
 
 	pubKey := fromPriv.Public().(*ecdsa.PublicKey)
@@ -52,7 +54,7 @@ func CreateTx(fromPriv *ecdsa.PrivateKey, to string, amount, price *big.Int, cha
 
 // VerifySignature verifies the transaction's signature
 func (tx *Transaction) VerifySignature() (bool, error) {
-	if tx.From == "COINBASE" {
+	if tx.From == COINBASE {
 		// Coinbase transactions do not have a signature
 		return true, nil
 	}

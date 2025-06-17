@@ -1,4 +1,4 @@
-package libp2p
+package node
 
 import (
 	"context"
@@ -22,8 +22,8 @@ import (
 	"github.com/multiformats/go-multiaddr"
 )
 
-// SetLibp2pHost creates a new libp2p host with the provided configuration
-func SetLibp2pHost(cfg cfg.Config, priv crypto.PrivKey) (host.Host, error) {
+// setLibp2pHost creates a new libp2p host with the provided configuration
+func setLibp2pHost(cfg cfg.Config, priv crypto.PrivKey) (host.Host, error) {
 	// Create a new libp2p host with the provided configuration
 	rm, err := getResourceManager(cfg)
 
@@ -74,8 +74,8 @@ func getResourceManager(cfg cfg.Config) (network.ResourceManager, error) {
 	return rm, nil
 }
 
-// SetKadDHT initializes the Kademlia DHT for peer discovery and routing
-func SetKadDHT(ctx context.Context, h host.Host, cfg cfg.Config) (*kaddht.IpfsDHT, error) {
+// setKadDHT initializes the Kademlia DHT for peer discovery and routing
+func setKadDHT(ctx context.Context, h host.Host, cfg cfg.Config) (*kaddht.IpfsDHT, error) {
 	log := logger.AppLogger
 
 	// Create a new Kademlia DHT instance with the provided host and configuration
@@ -139,8 +139,8 @@ func getKadMode(cfg cfg.Config) kaddht.ModeOpt {
 	}
 }
 
-// SetGossipSub initializes the GossipSub pubsub topics for block and transaction propagation
-func SetGossipSub(ctx context.Context, h host.Host) (*pubsub.Topic, *pubsub.Topic, error) {
+// setGossipSub initializes the GossipSub pubsub topics for block and transaction propagation
+func setGossipSub(ctx context.Context, h host.Host) (*pubsub.Topic, *pubsub.Topic, error) {
 	ps, err := pubsub.NewGossipSub(ctx, h,
 		pubsub.WithEventTracer(&logging.GossipsubTracer{}),
 		pubsub.WithMessageSigning(true),
