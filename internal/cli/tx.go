@@ -9,7 +9,7 @@ import (
 	"github.com/elecbug/lab-chain/internal/user"
 )
 
-func TxFunc(user *user.User, args []string) {
+func txFunc(user *user.User, args []string) {
 	if len(args) != 4 {
 		fmt.Printf("Usage: tx <to> <amount> <price>\n")
 		return

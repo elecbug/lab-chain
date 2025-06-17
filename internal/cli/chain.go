@@ -7,7 +7,7 @@ import (
 	"github.com/elecbug/lab-chain/internal/user"
 )
 
-func ChainFunc(user *user.User, args []string) {
+func chainFunc(user *user.User, args []string) {
 	if len(args) != 3 {
 		fmt.Printf("Usage: chain <command> <file>\n")
 		return

@@ -7,7 +7,7 @@ import (
 	"github.com/elecbug/lab-chain/internal/wallet"
 )
 
-func MkeyFunc(user *user.User, args []string) {
+func mkeyFunc(user *user.User, args []string) {
 	if len(args) != 3 {
 		fmt.Printf("Usage: mkey <command> <file>\n")
 		return

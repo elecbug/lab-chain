@@ -8,7 +8,7 @@ import (
 	"github.com/elecbug/lab-chain/internal/wallet"
 )
 
-func WalletFunc(user *user.User, args []string) {
+func walletFunc(user *user.User, args []string) {
 	if len(args) != 2 && len(args) != 3 {
 		fmt.Printf("Usage: wallet <command> [args]\n")
 		return

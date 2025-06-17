@@ -7,7 +7,7 @@ import (
 	"github.com/elecbug/lab-chain/internal/user"
 )
 
-func MineFunc(user *user.User, args []string) {
+func mineFunc(user *user.User, args []string) {
 	if len(args) == 1 {
 
 		if user.MasterKey == nil {
