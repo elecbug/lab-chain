@@ -7,9 +7,9 @@ import (
 	"github.com/elecbug/lab-chain/internal/wallet"
 )
 
-func mkeyFunc(user *user.User, args []string) {
+func masterKeyFunc(user *user.User, args []string) {
 	if len(args) != 3 {
-		fmt.Printf("Usage: mkey <command> <file>\n")
+		fmt.Printf("Usage: master-key <command> <file>\n")
 		return
 	}
 
@@ -64,7 +64,7 @@ func mkeyFunc(user *user.User, args []string) {
 
 		user.MasterKey = masterKey
 	} else {
-		fmt.Printf("Usage: mkey <command> <file>\n")
+		fmt.Printf("Usage: master-key <command> <file>\n")
 		return
 	}
 }
