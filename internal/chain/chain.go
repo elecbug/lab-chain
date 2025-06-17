@@ -40,23 +40,16 @@ func InitBlockchain(miner string) *Chain {
 func (c *Chain) MineBlock(prevHash []byte, index uint64, txs []*Transaction, miner string) *Block {
 	var nonce uint64
 	var hash []byte
+
 	timestamp := time.Now().Unix()
 	difficulty := c.calcDifficulty(20, 10)
-	totalFee := big.NewInt(0)
-	for _, tx := range txs {
-		if tx.From != "COINBASE" {
-			totalFee.Add(totalFee, tx.Price)
-		}
-	}
-
 	reward := big.NewInt(100)
-	reward.Add(reward, totalFee)
 
 	coinbaseTx := &Transaction{
-		From:      "COINBASE",
+		From:      COINBASE,
 		To:        miner,
 		Amount:    reward,
-		Nonce:     0,
+		Nonce:     index + 1,
 		Price:     big.NewInt(0),
 		Signature: nil,
 	}
@@ -74,6 +67,7 @@ func (c *Chain) MineBlock(prevHash []byte, index uint64, txs []*Transaction, min
 		if new(big.Int).SetBytes(hash).Cmp(difficulty) < 0 {
 			break
 		}
+
 		nonce++
 	}
 
@@ -134,20 +128,24 @@ func (c *Chain) VerifyBlock(block *Block, previous *Block) bool {
 		log.Infof("block index mismatch: got %d, expected %d", block.Index, previous.Index+1)
 		return false
 	}
+
 	if !bytes.Equal(block.PreviousHash, previous.Hash) {
 		log.Infof("previous hash mismatch")
 		return false
 	}
 
 	hashInt := new(big.Int).SetBytes(block.Hash)
+
 	if hashInt.Cmp(block.Difficulty) >= 0 {
 		log.Infof("block does not meet difficulty: hash=%x, difficulty=%x", block.Hash, block.Difficulty)
 		return false
 	}
 
 	expectedNonces := make(map[string]uint64)
+
 	for i, tx := range block.Transactions {
 		ok, err := tx.VerifySignature()
+
 		if err != nil || !ok {
 			log.Infof("tx[%d] signature invalid: %v", i, err)
 			return false
@@ -155,18 +153,20 @@ func (c *Chain) VerifyBlock(block *Block, previous *Block) bool {
 	}
 
 	for i, tx := range block.Transactions {
-		if tx.From == "COINBASE" {
+		if tx.From == COINBASE {
 			continue
 		}
 
 		required := new(big.Int).Add(tx.Amount, tx.Price)
 		balance := c.GetBalance(tx.From)
+
 		if balance.Cmp(required) < 0 {
 			log.Infof("tx[%d] insufficient balance: from=%s, need=%s, have=%s", i, tx.From, required.String(), balance.String())
 			return false
 		}
 
 		expected, ok := expectedNonces[tx.From]
+
 		if !ok {
 			expected = c.GetNonce(tx.From)
 		}
@@ -175,6 +175,7 @@ func (c *Chain) VerifyBlock(block *Block, previous *Block) bool {
 			log.Infof("tx[%d] invalid nonce: from=%s, got=%d, expected=%d", i, tx.From, tx.Nonce, expected)
 			return false
 		}
+
 		expectedNonces[tx.From] = expected + 1
 	}
 
@@ -189,14 +190,17 @@ func (c *Chain) GetBalance(address string) *big.Int {
 	for _, blk := range c.Blocks {
 		for _, tx := range blk.Transactions {
 			txHash := string(tx.hash())
+
 			if seen[txHash] {
 				continue
 			}
+
 			seen[txHash] = true
 
 			if tx.From == address {
 				balance.Sub(balance, tx.Amount)
 			}
+
 			if tx.To == address {
 				balance.Add(balance, tx.Amount)
 			}
@@ -218,6 +222,7 @@ func (c *Chain) Save(path string) error {
 	defer c.Mu.Unlock()
 
 	data, err := json.MarshalIndent(c, "", "  ")
+
 	if err != nil {
 		return fmt.Errorf("failed to marshal blockchain: %v", err)
 	}
@@ -228,10 +233,13 @@ func (c *Chain) Save(path string) error {
 // Load reads blockchain data from a file
 func Load(path string) (*Chain, error) {
 	data, err := os.ReadFile(path)
+
 	if err != nil {
 		return nil, fmt.Errorf("failed to read blockchain file: %v", err)
 	}
+
 	temp := &Chain{}
+
 	if err := json.Unmarshal(data, temp); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal blockchain: %v", err)
 	}
@@ -249,6 +257,7 @@ func Load(path string) (*Chain, error) {
 // GetNonce calculates the nonce for a given address
 func (c *Chain) GetNonce(address string) uint64 {
 	var nonce uint64
+
 	for _, blk := range c.Blocks {
 		for _, tx := range blk.Transactions {
 			if tx.From == address {
@@ -263,9 +272,11 @@ func (c *Chain) GetNonce(address string) uint64 {
 func (c *Chain) GetBlockByIndex(i uint64) *Block {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
+
 	if i < uint64(len(c.Blocks)) {
 		return c.Blocks[i]
 	}
+
 	return nil
 }
 
@@ -276,10 +287,12 @@ func (c *Chain) GetBlockByHash(hash []byte) *Block {
 			return blk
 		}
 	}
+
 	for _, blk := range c.pendingForkBlocks {
 		if bytes.Equal(blk.Hash, hash) {
 			return blk
 		}
 	}
+
 	return nil
 }
