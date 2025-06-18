@@ -239,21 +239,10 @@ func (c *Chain) GetBalance(address string) *big.Int {
 	return balance
 }
 
-// insertBlock appends a verified block to the chain
-func (c *Chain) insertBlock(block *Block, last *Block) error {
-	c.Mu.Lock()
-	defer c.Mu.Unlock()
-
-	for i, blk := range c.Blocks {
-		if blk.Index == last.Index {
-			c.Blocks = c.Blocks[:i+1]
-			c.Blocks = append(c.Blocks, block)
-
-			return nil
-		}
-	}
-
-	return fmt.Errorf("last block not found in chain: %d", last.Index)
+// addBlock appends a verified block to the chain
+func (c *Chain) addBlock(block *Block) error {
+	c.Blocks = append(c.Blocks, block)
+	return nil
 }
 
 // Save writes the blockchain to a file as JSON

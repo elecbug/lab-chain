@@ -5,8 +5,6 @@ import (
 	"context"
 	"fmt"
 	"math/big"
-	"sort"
-	"time"
 
 	"github.com/elecbug/lab-chain/internal/logger"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -63,22 +61,20 @@ func RunSubscribeAndCollectTx(ctx context.Context, sub *pubsub.Subscription, mem
 }
 
 // RunSubscribeAndCollectBlock listens for incoming blocks and processes them accordingly
-func RunSubscribeAndCollectBlock(ctx context.Context, topic *pubsub.Topic, sub *pubsub.Subscription, mempool *Mempool, chain *Chain, sender peer.ID) {
+func RunSubscribeAndCollectBlock(ctx context.Context, topic *pubsub.Topic, sub *pubsub.Subscription, mempool *Mempool, chain *Chain, peerID peer.ID) {
 	log := logger.LabChainLogger
 
 	go func() {
-		recentRequests := make(map[uint64]time.Time)
-
 		for {
 			msg, err := sub.Next(ctx)
 
-			if err != nil {
-				log.Errorf("failed to receive block message: %v", err)
+			if peerID == peer.ID(msg.From) {
+				log.Debugf("ignoring block message from self: %s", peerID)
 				continue
 			}
 
-			if peer.ID(msg.From) == sender {
-				log.Debugf("ignoring block message from self: %s", sender)
+			if err != nil {
+				log.Errorf("failed to receive block message: %v", err)
 				continue
 			}
 
@@ -91,180 +87,48 @@ func RunSubscribeAndCollectBlock(ctx context.Context, topic *pubsub.Topic, sub *
 
 			switch blockMsg.Type {
 			case BlockMsgTypeBlock:
-				block := blockMsg.Blocks[0]
-				log.Infof("received block: index %d, miner %s, hash %x", block.Index, block.Miner, block.Hash)
+				log.Infof("received block: index %d, miner %s", blockMsg.Blocks[0].Index, blockMsg.Blocks[0].Miner)
 
-				err := chain.handleIncomingBlockAdd(block, chain.Blocks[len(chain.Blocks)-1])
-
-				if err != nil {
+				if err := chain.handleIncomingBlock(blockMsg.Blocks[0]); err != nil {
 					log.Warnf("incoming block rejected: %v", err)
-
-					requestBlocks(ctx, chain.Blocks[len(chain.Blocks)-1].Index+1, block.Index, topic)
 				} else {
-					log.Infof("block accepted into chain: index %d, hash: %x", block.Index, block.Hash)
+					log.Infof("block accepted into chain: index %d, hash: %x", blockMsg.Blocks[0].Index, blockMsg.Blocks[0].Hash)
 
-					for _, tx := range block.Transactions {
+					for _, tx := range blockMsg.Blocks[0].Transactions {
 						mempool.Remove(tx)
 					}
 				}
 
 			case BlockMsgTypeReq:
-				log.Infof("received block request: index %v", blockMsg.ReqIdxs)
-
-				blocks := make([]*Block, 0)
-
-				for _, idx := range blockMsg.ReqIdxs {
-					blk := chain.GetBlockByIndex(idx)
-
-					if blk != nil {
-						blocks = append(blocks, blk)
-					}
-				}
-
-				if len(blocks) != 0 {
-					resp := &BlockMessage{
-						Type:   BlockMsgTypeResp,
-						Blocks: blocks,
-					}
-
-					if len(resp.Blocks) > 0 {
-						log.Infof("sending block response: index %d ... %d", resp.Blocks[0].Index, resp.Blocks[len(resp.Blocks)-1].Index)
-
-						data, err := serializeBlockMessage(resp)
-
-						if err == nil {
-							topic.Publish(ctx, data)
-						}
-					}
-				}
-
 			case BlockMsgTypeResp:
-				if len(blockMsg.Blocks) == 0 {
-					log.Warn("received empty block response")
-					continue
-				} else {
-					log.Infof("received block response: index %d ... %d", blockMsg.Blocks[0].Index, blockMsg.Blocks[len(blockMsg.Blocks)-1].Index)
-				}
-
-				err = chain.connectBlocks(ctx, blockMsg.Blocks, topic, recentRequests)
-
-				if err != nil {
-					log.Warnf("response block rejected: %v", err)
-				}
 			}
 		}
 	}()
 }
 
-// handleIncomingBlockAdd handles incoming blocks and appends them to the chain if valid
-func (c *Chain) handleIncomingBlockAdd(block *Block, last *Block) error {
-	log := logger.LabChainLogger
-
+// handleIncomingBlock handles incoming blocks and appends them to the chain if valid
+func (c *Chain) handleIncomingBlock(block *Block) error {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 
-	if last == nil {
-		log.Warn("last block is nil, cannot append new block")
-		return fmt.Errorf("last block is nil, cannot append new block")
+	log := logger.LabChainLogger
+	last := c.Blocks[len(c.Blocks)-1]
+
+	// Check if the parent of this block is known
+	parent := c.GetBlockByHash(block.PreviousHash)
+	if parent == nil {
+		log.Infof("previous hash not found for block index %d", block.Index)
+		return fmt.Errorf("unknown parent block: index %d", block.Index)
 	}
 
 	// Append to current chain
 	if block.Index == last.Index+1 && bytes.Equal(block.PreviousHash, last.Hash) {
 		if c.VerifyBlock(block, last) {
-			return c.insertBlock(block, last)
+			return c.addBlock(block)
+		} else {
+			return fmt.Errorf("block failed verification: index %d", block.Index)
 		}
 	}
 
 	return fmt.Errorf("unacceptable block: index %d", block.Index)
-}
-
-// shouldRequest determines if we should request the given index (no repeat within 5 seconds)
-func shouldRequest(idx uint64, recentRequests map[uint64]time.Time) bool {
-	if t, ok := recentRequests[idx]; ok && time.Since(t) < 5*time.Second {
-		return false
-	}
-	recentRequests[idx] = time.Now()
-	return true
-}
-
-// connectBlocks connects a list of blocks to the chain, ensuring they are in the correct order
-func (c *Chain) connectBlocks(ctx context.Context, blocks []*Block, topic *pubsub.Topic, recentRequests map[uint64]time.Time) error {
-	log := logger.LabChainLogger
-
-	sort.Slice(blocks, func(i, j int) bool {
-		return blocks[i].Index < blocks[j].Index
-	})
-
-	pivot := c.GetBlockByHash(blocks[0].PreviousHash)
-
-	if pivot == nil {
-		start := indexMinux(blocks[0].Index)
-		end := blocks[len(blocks)-1].Index
-		for i := start; i <= end; i++ {
-			if shouldRequest(i, recentRequests) {
-				requestBlocks(ctx, i, i, topic)
-			}
-		}
-		return fmt.Errorf("no common ancestor found")
-	}
-
-	// build a temporary chain with verified blocks
-	temp := &Chain{Blocks: append([]*Block(nil), c.Blocks[:pivot.Index+1]...)}
-	expected := pivot.Index + 1
-
-	for _, blk := range blocks {
-		if blk.Index > expected {
-			// request missing blocks before this one
-			for i := expected; i < blk.Index; i++ {
-				if shouldRequest(i, recentRequests) {
-					requestBlocks(ctx, i, i, topic)
-					log.Infof("requested missing block index: %d", i)
-				}
-			}
-		}
-		// verify and append
-		if temp.VerifyBlock(blk, temp.Blocks[len(temp.Blocks)-1]) {
-			temp.Blocks = append(temp.Blocks, blk)
-			expected = blk.Index + 1
-		} else {
-			return fmt.Errorf("block %d failed verification", blk.Index)
-		}
-	}
-
-	// replace main chain
-	c.Blocks = temp.Blocks
-	log.Infof("chain successfully connected up to index: %d", c.Blocks[len(c.Blocks)-1].Index)
-	return nil
-}
-
-// indexMinux returns the index minus 9, ensuring it does not go below 1
-func indexMinux(u uint64) uint64 {
-	if u > 10 {
-		return u - 9
-	} else {
-		return 1
-	}
-}
-
-// requestBlocks sends a request for missing blocks in the specified range to the pubsub topic
-func requestBlocks(ctx context.Context, start, end uint64, topic *pubsub.Topic) {
-	log := logger.LabChainLogger
-
-	req := &BlockMessage{
-		Type:    BlockMsgTypeReq,
-		ReqIdxs: []uint64{},
-	}
-
-	for i := start; i <= end; i++ {
-		req.ReqIdxs = append(req.ReqIdxs, i)
-	}
-
-	reqData, err := serializeBlockMessage(req)
-
-	if err != nil {
-		log.Errorf("failed to serialize block request: %v", err)
-	} else {
-		log.Infof("requesting missing blocks: %v", req.ReqIdxs)
-		topic.Publish(ctx, reqData)
-	}
 }
