@@ -7,6 +7,7 @@ import (
 	"github.com/elecbug/lab-chain/internal/chain"
 	"github.com/ethereum/go-ethereum/common"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"github.com/libp2p/go-libp2p/core/peer"
 	"github.com/tyler-smith/go-bip32"
 )
 
@@ -19,4 +20,5 @@ type User struct {
 	TxTopic        *pubsub.Topic  // Pubsub topic for transactions
 	BlockTopic     *pubsub.Topic  // Pubsub topic for blocks
 	MemPool        *chain.Mempool // Memory pool for transactions
+	PeerID         peer.ID        // Peer ID of the user in the network
 }

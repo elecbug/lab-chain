@@ -24,10 +24,10 @@ func chainFunc(user *user.User, args []string) {
 		}
 
 		if err := user.Chain.Save(args[2]); err != nil {
-			fmt.Printf("failed to save blockchain: %v.\n", err)
+			fmt.Printf("Failed to save blockchain: %v.\n", err)
 
 		} else {
-			fmt.Printf("blockchain saved successfully.\n")
+			fmt.Printf("Blockchain saved successfully.\n")
 		}
 	case "load":
 		if user.Chain != nil {
@@ -70,12 +70,12 @@ func subscribeToTopics(user *user.User) {
 	blkSub, err := user.BlockTopic.Subscribe()
 
 	if err != nil {
-		fmt.Printf("failed to subscribe to block topic: %v.\n", err)
+		fmt.Printf("Failed to subscribe to block topic: %v.\n", err)
 
 		return
 	} else {
-		fmt.Printf("subscribed to block topic successfully.\n")
+		fmt.Printf("Subscribed to block topic successfully.\n")
 	}
 
-	chain.RunSubscribeAndCollectBlock(user.Context, user.BlockTopic, blkSub, user.MemPool, user.Chain)
+	chain.RunSubscribeAndCollectBlock(user.Context, user.BlockTopic, blkSub, user.MemPool, user.Chain, user.PeerID)
 }

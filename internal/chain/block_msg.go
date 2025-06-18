@@ -4,9 +4,9 @@ import "encoding/json"
 
 // BlockMessage represents a message containing a block or a request for a block
 type BlockMessage struct {
-	Type   string // "BLOCK", "REQ", "RESP"
-	Block  *Block // Type == "BLOCK" or "RESP"
-	ReqIdx uint64 // Type == "REQ"
+	Type    string   // "BLOCK", "REQ", "RESP"
+	Blocks  []*Block // Type == "BLOCK" or "RESP"
+	ReqIdxs []uint64 // Type == "REQ"
 }
 
 // serializeBlockMessage serializes a BlockMessage to bytes

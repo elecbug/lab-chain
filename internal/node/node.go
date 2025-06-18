@@ -58,6 +58,7 @@ func InitGeneralNode(ctx context.Context, cfg cfg.Config, priv crypto.PrivKey) e
 		MemPool:        chain.NewMempool(),
 		CurrentPrivKey: nil,
 		CurrentAddress: nil,
+		PeerID:         h.ID(),
 	}
 
 	cli.CliCommand(&user)
