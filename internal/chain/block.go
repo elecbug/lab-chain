@@ -2,10 +2,8 @@ package chain
 
 import (
 	"context"
-	"crypto/sha256"
 	"fmt"
 	"math/big"
-	"time"
 
 	"github.com/elecbug/lab-chain/internal/logger"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
@@ -29,8 +27,8 @@ func (block *Block) PublishBlock(ctx context.Context, blkTopic *pubsub.Topic) er
 
 	// Wrap the block into a BlockMessage
 	msg := &BlockMessage{
-		Type:  BlockMsgTypeBlock,
-		Block: block,
+		Type:   BlockMsgTypeBlock,
+		Blocks: []*Block{block},
 	}
 
 	// Serialize the BlockMessage
@@ -52,33 +50,4 @@ func (block *Block) PublishBlock(ctx context.Context, blkTopic *pubsub.Topic) er
 		block.Index, block.Miner, block.Nonce, block.Hash)
 
 	return nil
-}
-
-// createGenesisBlock creates the first block in the blockchain with a coinbase transaction
-func createGenesisBlock(to string) *Block {
-	txs := []*Transaction{
-		{
-			From:      COINBASE,
-			To:        to,
-			Amount:    big.NewInt(1000), // Initial reward
-			Nonce:     0,
-			Price:     big.NewInt(0),
-			Signature: nil,
-		},
-	}
-
-	header := fmt.Sprintf("0%x%d%s%d", []byte{}, time.Now().Unix(), to, 0)
-	headerHash := sha256.Sum256([]byte(header))
-	fullData := append(headerHash[:], serializeTxs(txs)...)
-	hash := sha256.Sum256(fullData)
-
-	return &Block{
-		Index:        0,
-		PreviousHash: []byte{},
-		Timestamp:    time.Now().Unix(),
-		Transactions: txs,
-		Miner:        to,
-		Nonce:        0,
-		Hash:         hash[:],
-	}
 }

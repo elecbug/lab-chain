@@ -36,13 +36,42 @@ func InitBlockchain(miner string) *Chain {
 	return bc
 }
 
+// createGenesisBlock creates the first block in the blockchain with a coinbase transaction
+func createGenesisBlock(to string) *Block {
+	txs := []*Transaction{
+		{
+			From:      COINBASE,
+			To:        to,
+			Amount:    big.NewInt(1000), // Initial reward
+			Nonce:     0,
+			Price:     big.NewInt(0),
+			Signature: nil,
+		},
+	}
+
+	header := fmt.Sprintf("0%x%d%s%d", []byte{}, time.Now().Unix(), to, 0)
+	headerHash := sha256.Sum256([]byte(header))
+	fullData := append(headerHash[:], serializeTxs(txs)...)
+	hash := sha256.Sum256(fullData)
+
+	return &Block{
+		Index:        0,
+		PreviousHash: []byte{},
+		Timestamp:    time.Now().Unix(),
+		Transactions: txs,
+		Miner:        to,
+		Nonce:        0,
+		Hash:         hash[:],
+	}
+}
+
 // MineBlock mines a new block with the given parameters
 func (c *Chain) MineBlock(prevHash []byte, index uint64, txs []*Transaction, miner string) *Block {
 	var nonce uint64
 	var hash []byte
 
 	timestamp := time.Now().Unix()
-	difficulty := c.calcDifficulty(20, 10)
+	difficulty := c.calcDifficulty(30, 10)
 	reward := big.NewInt(100)
 
 	coinbaseTx := &Transaction{

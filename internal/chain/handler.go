@@ -8,6 +8,7 @@ import (
 
 	"github.com/elecbug/lab-chain/internal/logger"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 // RunSubscribeAndCollectTx listens for incoming transactions on the pubsub subscription
@@ -46,30 +47,39 @@ func RunSubscribeAndCollectTx(ctx context.Context, sub *pubsub.Subscription, mem
 
 			txID := string(tx.Signature)
 			mempool.mu.Lock()
+
 			if _, exists := mempool.pool[txID]; !exists {
 				mempool.pool[txID] = tx
 				log.Infof("transaction received and stored: %s -> %s, amount: %s", tx.From, tx.To, tx.Amount.String())
 			} else {
 				log.Debugf("transaction already in mempool, skipping: %s", txID)
 			}
+
 			mempool.mu.Unlock()
 		}
 	}()
 }
 
 // RunSubscribeAndCollectBlock listens for incoming blocks and processes them accordingly
-func RunSubscribeAndCollectBlock(ctx context.Context, topic *pubsub.Topic, sub *pubsub.Subscription, mempool *Mempool, chain *Chain) {
+func RunSubscribeAndCollectBlock(ctx context.Context, topic *pubsub.Topic, sub *pubsub.Subscription, mempool *Mempool, chain *Chain, peerID peer.ID) {
 	log := logger.LabChainLogger
 
 	go func() {
 		for {
 			msg, err := sub.Next(ctx)
+
+			if peerID == peer.ID(msg.From) {
+				log.Debugf("ignoring block message from self: %s", peerID)
+				continue
+			}
+
 			if err != nil {
 				log.Errorf("failed to receive block message: %v", err)
 				continue
 			}
 
 			blockMsg, err := deserializeBlockMessage(msg.Data)
+
 			if err != nil {
 				log.Warnf("invalid block message received: %v", err)
 				continue
@@ -77,55 +87,35 @@ func RunSubscribeAndCollectBlock(ctx context.Context, topic *pubsub.Topic, sub *
 
 			switch blockMsg.Type {
 			case BlockMsgTypeBlock:
-				log.Infof("received block: index %d, miner %s", blockMsg.Block.Index, blockMsg.Block.Miner)
+				log.Infof("received block: index %d, miner %s", blockMsg.Blocks[0].Index, blockMsg.Blocks[0].Miner)
 
-				if err := chain.handleIncomingBlock(blockMsg.Block); err != nil {
+				if err := chain.handleIncomingBlock(blockMsg.Blocks[0]); err != nil {
 					log.Warnf("incoming block rejected: %v", err)
 				} else {
-					log.Infof("block accepted into chain: index %d, hash: %x", blockMsg.Block.Index, blockMsg.Block.Hash)
+					log.Infof("block accepted into chain: index %d, hash: %x", blockMsg.Blocks[0].Index, blockMsg.Blocks[0].Hash)
 
-					for _, tx := range blockMsg.Block.Transactions {
+					for _, tx := range blockMsg.Blocks[0].Transactions {
 						mempool.Remove(tx)
 					}
 				}
 
 			case BlockMsgTypeReq:
-				log.Infof("received block request: index %d", blockMsg.ReqIdx)
-				blk := chain.GetBlockByIndex(blockMsg.ReqIdx)
-				if blk != nil {
-					resp := &BlockMessage{
-						Type:  BlockMsgTypeResp,
-						Block: blk,
-					}
-
-					data, err := serializeBlockMessage(resp)
-
-					if err == nil {
-						topic.Publish(ctx, data)
-					}
-				}
-
 			case BlockMsgTypeResp:
-				log.Infof("received block response: index %d", blockMsg.Block.Index)
-
-				if err := chain.handleIncomingBlock(blockMsg.Block); err != nil {
-					log.Warnf("response block rejected: %v", err)
-				}
 			}
 		}
 	}()
 }
 
 // handleIncomingBlock handles incoming blocks and appends them to the chain if valid
-func (bc *Chain) handleIncomingBlock(block *Block) error {
-	bc.Mu.Lock()
-	defer bc.Mu.Unlock()
+func (c *Chain) handleIncomingBlock(block *Block) error {
+	c.Mu.Lock()
+	defer c.Mu.Unlock()
 
 	log := logger.LabChainLogger
-	last := bc.Blocks[len(bc.Blocks)-1]
+	last := c.Blocks[len(c.Blocks)-1]
 
 	// Check if the parent of this block is known
-	parent := bc.GetBlockByHash(block.PreviousHash)
+	parent := c.GetBlockByHash(block.PreviousHash)
 	if parent == nil {
 		log.Infof("previous hash not found for block index %d", block.Index)
 		return fmt.Errorf("unknown parent block: index %d", block.Index)
@@ -133,8 +123,8 @@ func (bc *Chain) handleIncomingBlock(block *Block) error {
 
 	// Append to current chain
 	if block.Index == last.Index+1 && bytes.Equal(block.PreviousHash, last.Hash) {
-		if bc.VerifyBlock(block, last) {
-			return bc.addBlock(block)
+		if c.VerifyBlock(block, last) {
+			return c.addBlock(block)
 		} else {
 			return fmt.Errorf("block failed verification: index %d", block.Index)
 		}
