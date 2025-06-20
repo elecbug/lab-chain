@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"math/big"
 	"os"
+	"sort"
 	"sync"
 	"time"
 
@@ -80,12 +81,16 @@ func (c *Chain) MineBlock(prevHash []byte, index uint64, txs []*Transaction, min
 		From:      COINBASE,
 		To:        miner,
 		Amount:    reward,
-		Nonce:     index + 1,
+		Nonce:     index,
 		Price:     big.NewInt(0),
 		Signature: nil,
 	}
 
 	txs = append([]*Transaction{coinbaseTx}, txs...)
+
+	sort.Slice(txs, func(i, j int) bool {
+		return txs[i].Nonce < txs[j].Nonce
+	})
 
 	for {
 		header := fmt.Sprintf("%d%x%d%s%d", index, prevHash, timestamp, miner, nonce)
@@ -141,7 +146,7 @@ func (c *Chain) calcDifficulty(targetIntervalSec int64, windowSize int) *big.Int
 }
 
 // VerifyBlock checks if a block is valid against the previous block
-func (c *Chain) VerifyBlock(block *Block, previous *Block) bool {
+func (c *Chain) VerifyBlock(block *Block, previous *Block, mempool *Mempool) bool {
 	log := logger.LabChainLogger
 
 	// log.Infof("Verifying block: index=%d", block.Index)
@@ -184,6 +189,10 @@ func (c *Chain) VerifyBlock(block *Block, previous *Block) bool {
 		}
 	}
 
+	mempool.Sort()
+
+	tempMem := make(map[string]int, 0)
+
 	for i, tx := range block.Transactions {
 		if tx.From == COINBASE {
 			continue
@@ -200,7 +209,8 @@ func (c *Chain) VerifyBlock(block *Block, previous *Block) bool {
 		expected, ok := expectedNonces[tx.From]
 
 		if !ok {
-			expected = c.GetNonce(tx.From)
+			expected = c.GetNonce(tx.From, tempMem[tx.From])
+			tempMem[tx.From]++
 		}
 
 		if tx.Nonce != expected {
@@ -296,7 +306,7 @@ func Load(path string) (*Chain, error) {
 }
 
 // GetNonce calculates the nonce for a given address
-func (c *Chain) GetNonce(address string) uint64 {
+func (c *Chain) GetNonce(address string, base int) uint64 {
 	var nonce uint64
 
 	for _, blk := range c.Blocks {
@@ -306,7 +316,8 @@ func (c *Chain) GetNonce(address string) uint64 {
 			}
 		}
 	}
-	return nonce
+
+	return nonce + uint64(base)
 }
 
 // GetBlockByIndex returns the block at the specified index

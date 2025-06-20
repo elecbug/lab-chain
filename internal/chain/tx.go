@@ -26,17 +26,25 @@ type Transaction struct {
 }
 
 // CreateTx creates a new transaction with the given parameters and signs it
-func CreateTx(fromPriv *ecdsa.PrivateKey, to string, amount, price *big.Int, chain *Chain) (*Transaction, error) {
+func CreateTx(fromPriv *ecdsa.PrivateKey, to string, amount, price *big.Int, chain *Chain, mempool *Mempool) (*Transaction, error) {
 	log := logger.LabChainLogger
 
 	pubKey := fromPriv.Public().(*ecdsa.PublicKey)
 	fromAddr := crypto.PubkeyToAddress(*pubKey)
 
+	base := 0
+
+	for _, v := range mempool.pool {
+		if v.From == fromAddr.Hex() {
+			base++
+		}
+	}
+
 	tx := &Transaction{
 		From:   fromAddr.Hex(),
 		To:     to,
 		Amount: amount,
-		Nonce:  chain.GetNonce(fromAddr.Hex()),
+		Nonce:  chain.GetNonce(fromAddr.Hex(), base),
 		Price:  price,
 	}
 
