@@ -49,8 +49,10 @@ func createGenesisBlock(to string) *Block {
 
 	header := fmt.Sprintf("0%x%d%s%d", []byte{}, time.Now().Unix(), to, 0)
 	headerHash := sha256.Sum256([]byte(header))
-	fullData := append(headerHash[:], serializeTxs(txs)...)
-	hash := sha256.Sum256(fullData)
+	root := computeMerkleRoot(headerHash[:], txs)
+
+	digest := sha256.Sum256(root.Root.Hash)
+	hash := digest[:]
 
 	return &Block{
 		Index:        0,
@@ -59,7 +61,8 @@ func createGenesisBlock(to string) *Block {
 		Transactions: txs,
 		Miner:        to,
 		Nonce:        0,
-		Hash:         hash[:],
+		Hash:         hash,
+		MerkleRoot:   root,
 	}
 }
 
@@ -67,6 +70,7 @@ func createGenesisBlock(to string) *Block {
 func (c *Chain) MineBlock(prevHash []byte, index uint64, txs []*Transaction, miner string) *Block {
 	var nonce uint64
 	var hash []byte
+	var root *MerkleTree
 
 	timestamp := time.Now().Unix()
 	difficulty := c.calcDifficulty(30, 10)
@@ -86,9 +90,9 @@ func (c *Chain) MineBlock(prevHash []byte, index uint64, txs []*Transaction, min
 	for {
 		header := fmt.Sprintf("%d%x%d%s%d", index, prevHash, timestamp, miner, nonce)
 		headerHash := sha256.Sum256([]byte(header))
-		fullData := append(headerHash[:], serializeTxs(txs)...)
+		root = computeMerkleRoot(headerHash[:], txs)
 
-		digest := sha256.Sum256(fullData)
+		digest := sha256.Sum256(root.Root.Hash)
 		hash = digest[:]
 
 		if new(big.Int).SetBytes(hash).Cmp(difficulty) < 0 {
@@ -107,6 +111,7 @@ func (c *Chain) MineBlock(prevHash []byte, index uint64, txs []*Transaction, min
 		Nonce:        nonce,
 		Hash:         hash,
 		Difficulty:   difficulty,
+		MerkleRoot:   root,
 	}
 }
 
@@ -204,6 +209,16 @@ func (c *Chain) VerifyBlock(block *Block, previous *Block) bool {
 		}
 
 		expectedNonces[tx.From] = expected + 1
+	}
+
+	header := fmt.Sprintf("%d%x%d%s%d", block.Index, block.PreviousHash, block.Timestamp, block.Miner, block.Nonce)
+	headerHash := sha256.Sum256([]byte(header))
+
+	root := computeMerkleRoot(headerHash[:], block.Transactions)
+
+	if block.MerkleRoot == nil || !bytes.Equal(block.MerkleRoot.Root.Hash, root.Root.Hash) {
+		log.Infof("merkle root mismatch: expected=%s, actual=%s", block.MerkleRoot.Root.Hash, root.Root.Hash)
+		return false
 	}
 
 	return true
