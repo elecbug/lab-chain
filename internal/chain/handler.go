@@ -89,7 +89,7 @@ func RunSubscribeAndCollectBlock(ctx context.Context, topic *pubsub.Topic, sub *
 			case BlockMsgTypeBlock:
 				log.Infof("received block: index %d, miner %s", blockMsg.Blocks[0].Index, blockMsg.Blocks[0].Miner)
 
-				if err := chain.handleIncomingBlock(blockMsg.Blocks[0]); err != nil {
+				if err := chain.handleIncomingBlock(blockMsg.Blocks[0], mempool); err != nil {
 					log.Warnf("incoming block rejected: %v", err)
 				} else {
 					log.Infof("block accepted into chain: index %d, hash: %x", blockMsg.Blocks[0].Index, blockMsg.Blocks[0].Hash)
@@ -107,7 +107,7 @@ func RunSubscribeAndCollectBlock(ctx context.Context, topic *pubsub.Topic, sub *
 }
 
 // handleIncomingBlock handles incoming blocks and appends them to the chain if valid
-func (c *Chain) handleIncomingBlock(block *Block) error {
+func (c *Chain) handleIncomingBlock(block *Block, mempool *Mempool) error {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 
@@ -123,7 +123,7 @@ func (c *Chain) handleIncomingBlock(block *Block) error {
 
 	// Append to current chain
 	if block.Index == last.Index+1 && bytes.Equal(block.PreviousHash, last.Hash) {
-		if c.VerifyBlock(block, last) {
+		if c.VerifyBlock(block, last, mempool) {
 			return c.addBlock(block)
 		} else {
 			return fmt.Errorf("block failed verification: index %d", block.Index)

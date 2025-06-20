@@ -11,6 +11,30 @@ type Mempool struct {
 	pool map[string]*Transaction // key: tx hash or signature
 }
 
+// Sort sorts the transactions in the mempool by nonce
+func (mp *Mempool) Sort() {
+	mp.mu.Lock()
+	defer mp.mu.Unlock()
+
+	var txs []*Transaction
+	for _, tx := range mp.pool {
+		txs = append(txs, tx)
+	}
+
+	sort.Slice(txs, func(i, j int) bool {
+		if txs[i].Nonce == txs[j].Nonce {
+			return txs[i].From < txs[j].From // Secondary sort by sender address if nonces are equal
+		}
+
+		return txs[i].Nonce < txs[j].Nonce
+	})
+
+	mp.pool = make(map[string]*Transaction)
+	for _, tx := range txs {
+		mp.pool[string(tx.Signature)] = tx
+	}
+}
+
 // NewMempool creates a new instance of Mempool
 func NewMempool() *Mempool {
 	return &Mempool{

@@ -45,7 +45,7 @@ func txFunc(user *user.User, args []string) {
 		return
 	}
 
-	tx, err := chain.CreateTx(user.CurrentPrivKey, to, big.NewInt(amount), big.NewInt(price), user.Chain)
+	tx, err := chain.CreateTx(user.CurrentPrivKey, to, big.NewInt(amount), big.NewInt(price), user.Chain, user.MemPool)
 
 	if err != nil {
 		fmt.Printf("Failed to create transaction: %v.\n", err)
