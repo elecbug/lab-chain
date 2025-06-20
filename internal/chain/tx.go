@@ -139,18 +139,6 @@ func serializeTx(tx *Transaction) ([]byte, error) {
 	return jsonBytes, nil
 }
 
-// serializeTxs serializes the transactions into a byte slice
-func serializeTxs(txs []*Transaction) []byte {
-	var data []byte
-
-	for _, tx := range txs {
-		b, _ := json.Marshal(tx)
-		data = append(data, b...)
-	}
-
-	return data
-}
-
 // deserializeTx converts JSON bytes back into a Transaction object
 func deserializeTx(data []byte) (*Transaction, error) {
 	var tx Transaction
