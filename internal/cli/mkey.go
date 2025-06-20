@@ -16,7 +16,8 @@ func masterKeyFunc(user *user.User, args []string) {
 	command := args[1]
 	file := args[2]
 
-	if command == "gen" {
+	switch command {
+	case "gen":
 		masterKey, err := wallet.GenerateMasterKey()
 		if err != nil {
 			fmt.Printf("Failed to generate master key: %v.\n", err)
@@ -26,6 +27,8 @@ func masterKeyFunc(user *user.User, args []string) {
 			fmt.Printf("Master key generated successfully.\n")
 		}
 
+		user.MasterKey = masterKey
+
 		if err := wallet.SaveMasterKey(file, user.MasterKey); err != nil {
 			fmt.Printf("Failed to save master key: %v.\n", err)
 
@@ -33,8 +36,7 @@ func masterKeyFunc(user *user.User, args []string) {
 			fmt.Printf("Master key saved to file successfully: %s.\n", file)
 		}
 
-		user.MasterKey = masterKey
-	} else if command == "save" {
+	case "save":
 		if user.MasterKey == nil {
 			fmt.Printf("No master key generated. Please generate it first.\n")
 			return
@@ -46,7 +48,7 @@ func masterKeyFunc(user *user.User, args []string) {
 		} else {
 			fmt.Printf("Master key saved to file successfully: %s.\n", file)
 		}
-	} else if command == "load" {
+	case "load":
 		if user.MasterKey != nil {
 			fmt.Printf("Master key already loaded. Please reset first.\n")
 			return
@@ -63,7 +65,7 @@ func masterKeyFunc(user *user.User, args []string) {
 		}
 
 		user.MasterKey = masterKey
-	} else {
+	default:
 		fmt.Printf("Usage: master-key <command> <file>\n")
 		return
 	}

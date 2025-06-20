@@ -19,21 +19,19 @@ type Chain struct {
 	Mu                sync.Mutex
 	pendingBlocks     map[uint64]*Block
 	pendingForkBlocks map[uint64]*Block
-	Forks             map[uint64][]*Block
 }
 
 // InitBlockchain creates a new blockchain with a genesis block
 func InitBlockchain(miner string) *Chain {
 	genesis := createGenesisBlock(miner)
 
-	bc := &Chain{
+	c := &Chain{
 		Blocks:            []*Block{genesis},
-		Forks:             make(map[uint64][]*Block),
 		pendingBlocks:     make(map[uint64]*Block),
 		pendingForkBlocks: make(map[uint64]*Block),
 	}
 
-	return bc
+	return c
 }
 
 // createGenesisBlock creates the first block in the blockchain with a coinbase transaction
@@ -273,14 +271,13 @@ func Load(path string) (*Chain, error) {
 		return nil, fmt.Errorf("failed to unmarshal blockchain: %v", err)
 	}
 
-	bc := &Chain{
+	c := &Chain{
 		Blocks:            temp.Blocks,
-		Forks:             temp.Forks,
 		pendingBlocks:     make(map[uint64]*Block),
 		pendingForkBlocks: make(map[uint64]*Block),
 	}
 
-	return bc, nil
+	return c, nil
 }
 
 // GetNonce calculates the nonce for a given address

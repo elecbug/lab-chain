@@ -7,3 +7,4 @@ dht:
   mode: "server"
   bootstrap_peers:
     - "/ip4/172.20.0.2/tcp/12000/p2p/12D3KooWDZNQvpy2oM979kqFsEA8KykScP9GB4noNDpcJQjtBbY2"
+    - "/ip4/172.20.0.2/tcp/12000/p2p/12D3KooWKG5UHVGbFTaFBnKMzYeSqAQeNYqRVzjdfz1AeC8VSPNh"
