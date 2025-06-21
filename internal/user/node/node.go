@@ -7,7 +7,7 @@ import (
 	"github.com/elecbug/lab-chain/internal/cfg"
 	"github.com/elecbug/lab-chain/internal/cli"
 	"github.com/elecbug/lab-chain/internal/logger"
-	"github.com/elecbug/lab-chain/internal/logging"
+	"github.com/elecbug/lab-chain/internal/logger/logging"
 	"github.com/elecbug/lab-chain/internal/user"
 	"github.com/elecbug/lab-chain/internal/user/mempool"
 	"github.com/libp2p/go-libp2p/core/crypto"

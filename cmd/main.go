@@ -5,7 +5,7 @@ import (
 
 	"github.com/elecbug/lab-chain/internal/cfg"
 	"github.com/elecbug/lab-chain/internal/logger"
-	"github.com/elecbug/lab-chain/internal/node"
+	"github.com/elecbug/lab-chain/internal/user/node"
 )
 
 func main() {

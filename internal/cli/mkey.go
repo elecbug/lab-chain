@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"github.com/elecbug/lab-chain/internal/user"
-	"github.com/elecbug/lab-chain/internal/wallet"
+	"github.com/elecbug/lab-chain/internal/user/wallet"
 )
 
 func masterKeyFunc(user *user.User, args []string) {
