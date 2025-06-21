@@ -1,4 +1,6 @@
 # Fix Bug List for lab-chain
 
-1. Synchronization problems when the chain has not been sent for a long time [] -
-2. ~~Problems with nonce synchronization between transactions when multiple unmined transactions are generated~~ [x] 250621
+|✅|Date|Task|
+|-|-|-|
+|🚧|-|Synchronization problems when the chain has not been sent for a long time|
+|✅|250621|Problems with nonce synchronization between transactions when multiple unmined transactions are generated|
