@@ -14,19 +14,19 @@ import (
 
 // RunSubscribeAndCollectTx listens for incoming transactions on the pubsub subscription
 func RunSubscribeAndCollectTx(user *user.User) {
-	log := logger.LabChainLogger
-
-	sub, err := user.TxTopic.Subscribe()
-
-	if err != nil {
-		fmt.Printf("Failed to subscribe to transaction topic: %v.\n", err)
-
-		return
-	} else {
-		fmt.Printf("Subscribed to transaction topic successfully.\n")
-	}
-
 	go func() {
+		log := logger.LabChainLogger
+
+		sub, err := user.TxTopic.Subscribe()
+
+		if err != nil {
+			fmt.Printf("Failed to subscribe to transaction topic: %v.\n", err)
+
+			return
+		} else {
+			fmt.Printf("Subscribed to transaction topic successfully.\n")
+		}
+
 		for {
 			msg, err := sub.Next(user.Context)
 
@@ -68,19 +68,19 @@ func RunSubscribeAndCollectTx(user *user.User) {
 
 // RunSubscribeAndCollectBlock listens for incoming blocks and processes them accordingly
 func RunSubscribeAndCollectBlock(user *user.User) {
-	log := logger.LabChainLogger
-
-	sub, err := user.BlockTopic.Subscribe()
-
-	if err != nil {
-		fmt.Printf("Failed to subscribe to block topic: %v.\n", err)
-
-		return
-	} else {
-		fmt.Printf("Subscribed to block topic successfully.\n")
-	}
-
 	go func() {
+		log := logger.LabChainLogger
+
+		sub, err := user.BlockTopic.Subscribe()
+
+		if err != nil {
+			fmt.Printf("Failed to subscribe to block topic: %v.\n", err)
+
+			return
+		} else {
+			fmt.Printf("Subscribed to block topic successfully.\n")
+		}
+
 		for {
 			msg, err := sub.Next(user.Context)
 
