@@ -16,7 +16,7 @@ const (
 type BlockMessage struct {
 	Type    BlockMsgType // "BLOCK", "REQ", "RESP"
 	Blocks  []*Block     // Type == "BLOCK" or "RESP"
-	ReqIdxs []uint64     // Type == "REQ"
+	ReqIdxs uint64       // Type == "REQ"
 }
 
 // SerializeBlockMessage serializes a BlockMessage to bytes

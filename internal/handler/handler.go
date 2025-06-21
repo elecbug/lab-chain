@@ -116,18 +116,81 @@ func RunSubscribeAndCollectBlock(user *user.User) {
 				}
 
 			case block.BlockMsgTypeReq:
+				log.Infof("received block request from %s", msg.From)
+
+				if err := handleIncomingRequestBlock(blockMsg, user); err != nil {
+					log.Warnf("failed to handle block request: %v", err)
+				} else {
+					log.Infof("block request handled successfully, responding to %s", msg.From)
+				}
 			case block.BlockMsgTypeResp:
+				log.Infof("received block response from %s", msg.From)
+
+				if err := handleIncomingResponseBlock(blockMsg, user); err != nil {
+					log.Warnf("failed to handle block response: %v", err)
+				} else {
+					log.Infof("block response handled successfully, chain updated from %s", msg.From)
+				}
 			}
 		}
 	}()
 }
 
-// handleIncomingBlock handles incoming blocks and appends them to the chain if valid
-func handleIncomingBlock(block *block.Block, user *user.User) error {
+// RequestChain sends a request to the peer for the entire chain if the requested block index is out of range
+func RequestChain(user *user.User) error {
+	return nil
+}
+
+// handleIncomingResponseBlock handles incoming block responses
+func handleIncomingResponseBlock(blockMsg *block.BlockMessage, user *user.User) error {
+	return nil
+}
+
+// handleIncomingRequestBlock handles incoming block requests and responds with the requested block
+func handleIncomingRequestBlock(blockMsg *block.BlockMessage, user *user.User) error {
+	log := logger.LabChainLogger
+
 	user.Chain.Mu.Lock()
 	defer user.Chain.Mu.Unlock()
 
+	idx := blockMsg.ReqIdxs
+
+	if idx >= uint64(len(user.Chain.Blocks)) {
+		log.Infof("requested block index %d is out of range, current chain length is %d", idx, len(user.Chain.Blocks))
+		log.Infof("requested chain from %s", user.PeerID)
+
+		err := RequestChain(user)
+		return err
+	} else {
+		log.Infof("responding to block request for index %d", idx)
+
+		respMsg := &block.BlockMessage{
+			Type:   block.BlockMsgTypeResp,
+			Blocks: user.Chain.Blocks,
+		}
+
+		data, err := block.SerializeBlockMessage(respMsg)
+		if err != nil {
+			log.Errorf("failed to serialize block message: %v", err)
+			return err
+		}
+
+		if err := user.BlockTopic.Publish(user.Context, data); err != nil {
+			log.Errorf("failed to publish block response: %v", err)
+			return err
+		}
+
+		return nil
+	}
+}
+
+// handleIncomingBlock handles incoming blocks and appends them to the chain if valid
+func handleIncomingBlock(block *block.Block, user *user.User) error {
 	log := logger.LabChainLogger
+
+	user.Chain.Mu.Lock()
+	defer user.Chain.Mu.Unlock()
+
 	last := user.Chain.Blocks[len(user.Chain.Blocks)-1]
 
 	// Check if the parent of this block is known
