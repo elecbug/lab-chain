@@ -1,10 +1,11 @@
-package chain
+package block
 
 import (
 	"context"
 	"fmt"
 	"math/big"
 
+	"github.com/elecbug/lab-chain/internal/chain/tx"
 	"github.com/elecbug/lab-chain/internal/logger"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 )
@@ -14,7 +15,7 @@ type Block struct {
 	Index        uint64 // Block height
 	PreviousHash []byte
 	Timestamp    int64
-	Transactions []*Transaction
+	Transactions []*tx.Transaction
 	Miner        string
 	Nonce        uint64
 	Hash         []byte
@@ -33,7 +34,7 @@ func (block *Block) PublishBlock(ctx context.Context, blkTopic *pubsub.Topic) er
 	}
 
 	// Serialize the BlockMessage
-	msgBytes, err := serializeBlockMessage(msg)
+	msgBytes, err := SerializeBlockMessage(msg)
 	if err != nil {
 		return fmt.Errorf("failed to serialize block message: %v", err)
 	}

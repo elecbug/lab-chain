@@ -1,8 +1,10 @@
-package chain
+package block
 
 import (
 	"crypto/sha256"
 	"encoding/json"
+
+	"github.com/elecbug/lab-chain/internal/chain/tx"
 )
 
 // MerkleNode represents a node in the Merkle tree
@@ -59,8 +61,8 @@ func buildMerkleTree(data [][]byte) *MerkleTree {
 	return &MerkleTree{Root: nodes[0]}
 }
 
-// computeMerkleRoot computes the Merkle root of a list of transactions
-func computeMerkleRoot(header []byte, txs []*Transaction) *MerkleTree {
+// ComputeMerkleRoot computes the Merkle root of a list of transactions
+func ComputeMerkleRoot(header []byte, txs []*tx.Transaction) *MerkleTree {
 	var data = [][]byte{header}
 
 	for _, tx := range txs {

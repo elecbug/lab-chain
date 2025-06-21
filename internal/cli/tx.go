@@ -5,7 +5,6 @@ import (
 	"math/big"
 	"strconv"
 
-	"github.com/elecbug/lab-chain/internal/chain"
 	"github.com/elecbug/lab-chain/internal/user"
 )
 
@@ -45,7 +44,7 @@ func txFunc(user *user.User, args []string) {
 		return
 	}
 
-	tx, err := chain.CreateTx(user.CurrentPrivKey, to, big.NewInt(amount), big.NewInt(price), user.Chain, user.MemPool)
+	tx, err := user.Chain.CreateTx(user.CurrentPrivKey, to, big.NewInt(amount), big.NewInt(price), user.MemPool.GetBase(user.CurrentAddress.Hex()))
 
 	if err != nil {
 		fmt.Printf("Failed to create transaction: %v.\n", err)

@@ -1,75 +1,91 @@
-package chain
+package handler
 
 import (
 	"bytes"
-	"context"
 	"fmt"
 	"math/big"
 
+	"github.com/elecbug/lab-chain/internal/chain/block"
+	"github.com/elecbug/lab-chain/internal/chain/tx"
 	"github.com/elecbug/lab-chain/internal/logger"
-	pubsub "github.com/libp2p/go-libp2p-pubsub"
+	"github.com/elecbug/lab-chain/internal/user"
 	"github.com/libp2p/go-libp2p/core/peer"
 )
 
 // RunSubscribeAndCollectTx listens for incoming transactions on the pubsub subscription
-func RunSubscribeAndCollectTx(ctx context.Context, sub *pubsub.Subscription, mempool *Mempool, chain *Chain) {
+func RunSubscribeAndCollectTx(user *user.User) {
 	log := logger.LabChainLogger
+
+	sub, err := user.TxTopic.Subscribe()
+
+	if err != nil {
+		fmt.Printf("Failed to subscribe to transaction topic: %v.\n", err)
+
+		return
+	} else {
+		fmt.Printf("Subscribed to transaction topic successfully.\n")
+	}
 
 	go func() {
 		for {
-			msg, err := sub.Next(ctx)
+			msg, err := sub.Next(user.Context)
 
 			if err != nil {
 				log.Errorf("failed to receive pubsub message: %v", err)
 				continue
 			}
 
-			tx, err := deserializeTx(msg.Data)
+			t, err := tx.DeserializeTx(msg.Data)
 			if err != nil {
 				log.Warnf("invalid tx: failed to deserialize: %v", err)
 				continue
 			}
 
-			ok, err := tx.VerifySignature()
+			ok, err := t.VerifySignature()
 			if err != nil || !ok {
 				log.Warnf("invalid tx: signature verification failed: %v", err)
 				continue
 			}
 
-			if chain != nil {
-				required := new(big.Int).Add(tx.Amount, tx.Price)
-				balance := chain.GetBalance(tx.From)
+			if user.Chain != nil {
+				required := new(big.Int).Add(t.Amount, t.Price)
+				balance := user.Chain.GetBalance(t.From)
 				if balance.Cmp(required) < 0 {
 					log.Warnf("invalid tx: insufficient balance. required: %s, actual: %s", required.String(), balance.String())
 					continue
 				}
 			}
 
-			txID := string(tx.Signature)
-			mempool.mu.Lock()
-
-			if _, exists := mempool.pool[txID]; !exists {
-				mempool.pool[txID] = tx
-				log.Infof("transaction received and stored: %s -> %s, amount: %s", tx.From, tx.To, tx.Amount.String())
+			txID := string(t.Signature)
+			if user.MemPool.Add(txID, t) {
+				log.Infof("transaction received and stored: %s -> %s, amount: %s", t.From, t.To, t.Amount.String())
 			} else {
-				log.Debugf("transaction already in mempool, skipping: %s", txID)
+				log.Debugf("transaction already in mp, skipping: %s", txID)
 			}
-
-			mempool.mu.Unlock()
 		}
 	}()
 }
 
 // RunSubscribeAndCollectBlock listens for incoming blocks and processes them accordingly
-func RunSubscribeAndCollectBlock(ctx context.Context, topic *pubsub.Topic, sub *pubsub.Subscription, mempool *Mempool, chain *Chain, peerID peer.ID) {
+func RunSubscribeAndCollectBlock(user *user.User) {
 	log := logger.LabChainLogger
+
+	sub, err := user.BlockTopic.Subscribe()
+
+	if err != nil {
+		fmt.Printf("Failed to subscribe to block topic: %v.\n", err)
+
+		return
+	} else {
+		fmt.Printf("Subscribed to block topic successfully.\n")
+	}
 
 	go func() {
 		for {
-			msg, err := sub.Next(ctx)
+			msg, err := sub.Next(user.Context)
 
-			if peerID == peer.ID(msg.From) {
-				log.Debugf("ignoring block message from self: %s", peerID)
+			if user.PeerID == peer.ID(msg.From) {
+				log.Debugf("ignoring block message from self: %s", user.PeerID)
 				continue
 			}
 
@@ -78,7 +94,7 @@ func RunSubscribeAndCollectBlock(ctx context.Context, topic *pubsub.Topic, sub *
 				continue
 			}
 
-			blockMsg, err := deserializeBlockMessage(msg.Data)
+			blockMsg, err := block.DeserializeBlockMessage(msg.Data)
 
 			if err != nil {
 				log.Warnf("invalid block message received: %v", err)
@@ -86,36 +102,36 @@ func RunSubscribeAndCollectBlock(ctx context.Context, topic *pubsub.Topic, sub *
 			}
 
 			switch blockMsg.Type {
-			case BlockMsgTypeBlock:
+			case block.BlockMsgTypeBlock:
 				log.Infof("received block: index %d, miner %s", blockMsg.Blocks[0].Index, blockMsg.Blocks[0].Miner)
 
-				if err := chain.handleIncomingBlock(blockMsg.Blocks[0], mempool); err != nil {
+				if err := handleIncomingBlock(blockMsg.Blocks[0], user); err != nil {
 					log.Warnf("incoming block rejected: %v", err)
 				} else {
 					log.Infof("block accepted into chain: index %d, hash: %x", blockMsg.Blocks[0].Index, blockMsg.Blocks[0].Hash)
 
 					for _, tx := range blockMsg.Blocks[0].Transactions {
-						mempool.Remove(tx)
+						user.MemPool.Remove(tx)
 					}
 				}
 
-			case BlockMsgTypeReq:
-			case BlockMsgTypeResp:
+			case block.BlockMsgTypeReq:
+			case block.BlockMsgTypeResp:
 			}
 		}
 	}()
 }
 
 // handleIncomingBlock handles incoming blocks and appends them to the chain if valid
-func (c *Chain) handleIncomingBlock(block *Block, mempool *Mempool) error {
-	c.Mu.Lock()
-	defer c.Mu.Unlock()
+func handleIncomingBlock(block *block.Block, user *user.User) error {
+	user.Chain.Mu.Lock()
+	defer user.Chain.Mu.Unlock()
 
 	log := logger.LabChainLogger
-	last := c.Blocks[len(c.Blocks)-1]
+	last := user.Chain.Blocks[len(user.Chain.Blocks)-1]
 
 	// Check if the parent of this block is known
-	parent := c.GetBlockByHash(block.PreviousHash)
+	parent := user.Chain.GetBlockByHash(block.PreviousHash)
 	if parent == nil {
 		log.Infof("previous hash not found for block index %d", block.Index)
 		return fmt.Errorf("unknown parent block: index %d", block.Index)
@@ -123,8 +139,8 @@ func (c *Chain) handleIncomingBlock(block *Block, mempool *Mempool) error {
 
 	// Append to current chain
 	if block.Index == last.Index+1 && bytes.Equal(block.PreviousHash, last.Hash) {
-		if c.VerifyBlock(block, last, mempool) {
-			return c.addBlock(block)
+		if user.Chain.VerifyBlock(block, last, user.MemPool) {
+			return user.Chain.AddBlock(block)
 		} else {
 			return fmt.Errorf("block failed verification: index %d", block.Index)
 		}

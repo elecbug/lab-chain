@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/elecbug/lab-chain/internal/chain"
+	"github.com/elecbug/lab-chain/internal/handler"
 	"github.com/elecbug/lab-chain/internal/user"
 )
 
@@ -55,27 +56,7 @@ func chainFunc(user *user.User, args []string) {
 }
 
 func subscribeToTopics(user *user.User) {
-	txSub, err := user.TxTopic.Subscribe()
+	handler.RunSubscribeAndCollectTx(user)
 
-	if err != nil {
-		fmt.Printf("Failed to subscribe to transaction topic: %v.\n", err)
-
-		return
-	} else {
-		fmt.Printf("Subscribed to transaction topic successfully.\n")
-	}
-
-	chain.RunSubscribeAndCollectTx(user.Context, txSub, user.MemPool, user.Chain)
-
-	blkSub, err := user.BlockTopic.Subscribe()
-
-	if err != nil {
-		fmt.Printf("Failed to subscribe to block topic: %v.\n", err)
-
-		return
-	} else {
-		fmt.Printf("Subscribed to block topic successfully.\n")
-	}
-
-	chain.RunSubscribeAndCollectBlock(user.Context, user.BlockTopic, blkSub, user.MemPool, user.Chain, user.PeerID)
+	handler.RunSubscribeAndCollectBlock(user)
 }
