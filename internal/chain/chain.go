@@ -27,6 +27,14 @@ type Chain struct {
 	pendingForkBlocks map[uint64]*block.Block
 }
 
+func (c *Chain) VerifyChain() error {
+	// log := logger.LabChainLogger
+
+	// Need chain chekck logic
+
+	return nil
+}
+
 // CreateTx creates a new transaction with the given parameters and signs it
 func (c *Chain) CreateTx(fromPriv *ecdsa.PrivateKey, to string, amount, price *big.Int, base int) (*tx.Transaction, error) {
 	log := logger.LabChainLogger

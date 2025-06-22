@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/big"
 
+	"github.com/elecbug/lab-chain/internal/chain"
 	"github.com/elecbug/lab-chain/internal/chain/block"
 	"github.com/elecbug/lab-chain/internal/chain/tx"
 	"github.com/elecbug/lab-chain/internal/logger"
@@ -138,12 +139,75 @@ func RunSubscribeAndCollectBlock(user *user.User) {
 
 // RequestChain sends a request to the peer for the entire chain if the requested block index is out of range
 func RequestChain(user *user.User) error {
+	log := logger.LabChainLogger
+
+	if user.Chain == nil {
+		log.Warnf("user chain is nil, cannot request chain")
+		return fmt.Errorf("user chain is nil")
+	}
+
+	if len(user.Chain.Blocks) == 0 {
+		log.Warnf("user chain is empty, cannot request chain")
+		return fmt.Errorf("user chain is empty")
+	}
+
+	lastBlock := user.Chain.Blocks[len(user.Chain.Blocks)-1]
+	blockMsg := &block.BlockMessage{
+		Type: block.BlockMsgTypeReq,
+		Idx:  lastBlock.Index,
+	}
+
+	data, err := block.SerializeBlockMessage(blockMsg)
+
+	if err != nil {
+		log.Errorf("failed to serialize block message: %v", err)
+		return err
+	}
+
+	if err := user.BlockTopic.Publish(user.Context, data); err != nil {
+		log.Errorf("failed to publish block request: %v", err)
+		return err
+	}
+
+	log.Infof("requested chain from peer %s", user.PeerID)
 	return nil
 }
 
 // handleIncomingResponseBlock handles incoming block responses
 func handleIncomingResponseBlock(blockMsg *block.BlockMessage, user *user.User) error {
-	return nil
+	log := logger.LabChainLogger
+
+	user.Chain.Mu.Lock()
+	defer user.Chain.Mu.Unlock()
+
+	if len(blockMsg.Blocks) == 0 {
+		log.Warnf("received empty block response from %s", user.PeerID)
+		return fmt.Errorf("empty block response")
+	}
+
+	lastBlock := blockMsg.Blocks[len(blockMsg.Blocks)-1]
+
+	if user.Chain.Blocks[len(user.Chain.Blocks)-1].Index >= lastBlock.Index {
+		log.Infof("received block response with index %d, but current chain index is %d, ignoring", lastBlock.Index, user.Chain.Blocks[len(user.Chain.Blocks)-1].Index)
+		return nil
+	} else {
+		log.Infof("received block response with index %d, updating chain", lastBlock.Index)
+
+		newChain := &chain.Chain{
+			Blocks: blockMsg.Blocks,
+		}
+
+		if err := newChain.VerifyChain(); err != nil {
+			log.Errorf("received invalid chain from %s: %v", user.PeerID, err)
+			return fmt.Errorf("invalid chain received: %v", err)
+		} else {
+			user.Chain.Blocks = newChain.Blocks
+
+			log.Infof("updating chain with blocks from %s", user.PeerID)
+		}
+
+		return nil
+	}
 }
 
 // handleIncomingRequestBlock handles incoming block requests and responds with the requested block
@@ -153,7 +217,7 @@ func handleIncomingRequestBlock(blockMsg *block.BlockMessage, user *user.User) e
 	user.Chain.Mu.Lock()
 	defer user.Chain.Mu.Unlock()
 
-	idx := blockMsg.ReqIdxs
+	idx := blockMsg.Idx
 
 	if idx >= uint64(len(user.Chain.Blocks)) {
 		log.Infof("requested block index %d is out of range, current chain length is %d", idx, len(user.Chain.Blocks))
@@ -170,6 +234,7 @@ func handleIncomingRequestBlock(blockMsg *block.BlockMessage, user *user.User) e
 		}
 
 		data, err := block.SerializeBlockMessage(respMsg)
+
 		if err != nil {
 			log.Errorf("failed to serialize block message: %v", err)
 			return err
