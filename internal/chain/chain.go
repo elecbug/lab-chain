@@ -47,7 +47,7 @@ func (c *Chain) VerifyChain(genesis *block.Block) error {
 		previous := c.Blocks[i-1]
 
 		if current.Index != previous.Index+1 && bytes.Equal(current.PreviousHash, previous.Hash) {
-			if tempChain.VerifyBlock(current, previous) {
+			if tempChain.VerifyNewBlock(current, previous) {
 				tempChain.AddBlock(current)
 			} else {
 				log.Warnf("block %d verification failed", current.Index)
@@ -211,8 +211,8 @@ func (c *Chain) calcDifficulty(targetIntervalSec int64, windowSize int) *big.Int
 	return newDifficulty
 }
 
-// VerifyBlock checks if a block is valid against the previous block
-func (c *Chain) VerifyBlock(b *block.Block, previous *block.Block) bool {
+// VerifyNewBlock checks if a block is valid against the previous block
+func (c *Chain) VerifyNewBlock(b *block.Block, previous *block.Block) bool {
 	log := logger.LabChainLogger
 
 	// log.Infof("Verifying block: index=%d", block.Index)

@@ -267,7 +267,7 @@ func handleIncomingBlock(block *block.Block, user *user.User) error {
 
 	// Append to current chain
 	if block.Index == last.Index+1 && bytes.Equal(block.PreviousHash, last.Hash) {
-		if user.Chain.VerifyBlock(block, last) {
+		if user.Chain.VerifyNewBlock(block, last) {
 			return user.Chain.AddBlock(block)
 		} else {
 			return fmt.Errorf("block failed verification: index %d", block.Index)
