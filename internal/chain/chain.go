@@ -15,7 +15,6 @@ import (
 	"github.com/elecbug/lab-chain/internal/chain/block"
 	"github.com/elecbug/lab-chain/internal/chain/tx"
 	"github.com/elecbug/lab-chain/internal/logger"
-	"github.com/elecbug/lab-chain/internal/user/mempool"
 	"github.com/ethereum/go-ethereum/crypto"
 )
 
@@ -27,10 +26,37 @@ type Chain struct {
 	pendingForkBlocks map[uint64]*block.Block
 }
 
-func (c *Chain) VerifyChain() error {
-	// log := logger.LabChainLogger
+// VerifyChain checks the integrity of the blockchain starting from the genesis block
+func (c *Chain) VerifyChain(genesis *block.Block) error {
+	log := logger.LabChainLogger
 
-	// Need chain chekck logic
+	if c.Blocks[0].Equal(genesis) {
+		log.Infof("genesis block verified successfully")
+	} else {
+		log.Warnf("genesis block mismatch")
+		return fmt.Errorf("genesis block mismatch")
+	}
+
+	tempChain := &Chain{
+		Blocks: []*block.Block{genesis},
+		Mu:     sync.Mutex{},
+	}
+
+	for i := 1; i < len(c.Blocks); i++ {
+		current := c.Blocks[i]
+		previous := c.Blocks[i-1]
+
+		if current.Index != previous.Index+1 && bytes.Equal(current.PreviousHash, previous.Hash) {
+			if tempChain.VerifyBlock(current, previous) {
+				tempChain.AddBlock(current)
+			} else {
+				log.Warnf("block %d verification failed", current.Index)
+				return fmt.Errorf("block %d verification failed", current.Index)
+			}
+		}
+	}
+
+	log.Infof("all blocks verified successfully")
 
 	return nil
 }
@@ -186,7 +212,7 @@ func (c *Chain) calcDifficulty(targetIntervalSec int64, windowSize int) *big.Int
 }
 
 // VerifyBlock checks if a block is valid against the previous block
-func (c *Chain) VerifyBlock(b *block.Block, previous *block.Block, mempool *mempool.Mempool) bool {
+func (c *Chain) VerifyBlock(b *block.Block, previous *block.Block) bool {
 	log := logger.LabChainLogger
 
 	// log.Infof("Verifying block: index=%d", block.Index)
@@ -218,8 +244,6 @@ func (c *Chain) VerifyBlock(b *block.Block, previous *block.Block, mempool *memp
 		return false
 	}
 
-	expectedNonces := make(map[string]uint64)
-
 	for i, t := range b.Transactions {
 		ok, err := t.VerifySignature()
 
@@ -228,8 +252,6 @@ func (c *Chain) VerifyBlock(b *block.Block, previous *block.Block, mempool *memp
 			return false
 		}
 	}
-
-	mempool.Sort()
 
 	tempMem := make(map[string]int, 0)
 
@@ -246,19 +268,13 @@ func (c *Chain) VerifyBlock(b *block.Block, previous *block.Block, mempool *memp
 			return false
 		}
 
-		expected, ok := expectedNonces[t.From]
-
-		if !ok {
-			expected = c.GetNonce(t.From, tempMem[t.From])
-			tempMem[t.From]++
-		}
+		expected := c.GetNonce(t.From, tempMem[t.From])
+		tempMem[t.From]++
 
 		if t.Nonce != expected {
 			log.Infof("tx[%d] invalid nonce: from=%s, got=%d, expected=%d", i, t.From, t.Nonce, expected)
 			return false
 		}
-
-		expectedNonces[t.From] = expected + 1
 	}
 
 	header := fmt.Sprintf("%d%x%d%s%d", b.Index, b.PreviousHash, b.Timestamp, b.Miner, b.Nonce)

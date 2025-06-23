@@ -19,6 +19,30 @@ type MerkleTree struct {
 	Root *MerkleNode
 }
 
+// Equal compares two Merkle trees for equality
+func (m *MerkleTree) Equal(target *MerkleTree) bool {
+	node := m.Root
+	targetNode := target.Root
+
+	var compareNodes func(a, b *MerkleNode) bool
+
+	compareNodes = func(a, b *MerkleNode) bool {
+		if a == nil && b == nil {
+			return true
+		}
+		if a == nil || b == nil {
+			return false
+		}
+		if string(a.Hash) != string(b.Hash) {
+			return false
+		}
+
+		return compareNodes(a.Left, b.Left) && compareNodes(a.Right, b.Right)
+	}
+
+	return compareNodes(node, targetNode)
+}
+
 // hashPair computes the hash of two byte slices concatenated together
 func hashPair(left, right []byte) []byte {
 	h := sha256.New()

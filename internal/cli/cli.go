@@ -70,7 +70,7 @@ func (c *cliCompleter) Do(line []rune, pos int) ([][]rune, int) {
 		"wallet":     {"set", "balance"},
 		"tx":         {},
 		"mine":       {"genesis"},
-		"chain":      {"save", "load"},
+		"chain":      {"save", "load", "request"},
 		"help":       {},
 		"exit":       {},
 	}

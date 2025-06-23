@@ -117,20 +117,20 @@ func RunSubscribeAndCollectBlock(user *user.User) {
 				}
 
 			case block.BlockMsgTypeReq:
-				log.Infof("received block request from %s", msg.From)
+				log.Infof("received block request from %s", peer.ID(msg.From))
 
 				if err := handleIncomingRequestBlock(blockMsg, user); err != nil {
 					log.Warnf("failed to handle block request: %v", err)
 				} else {
-					log.Infof("block request handled successfully, responding to %s", msg.From)
+					log.Infof("block request handled successfully, responding to %s", peer.ID(msg.From))
 				}
 			case block.BlockMsgTypeResp:
-				log.Infof("received block response from %s", msg.From)
+				log.Infof("received block response from %s", peer.ID(msg.From))
 
 				if err := handleIncomingResponseBlock(blockMsg, user); err != nil {
 					log.Warnf("failed to handle block response: %v", err)
 				} else {
-					log.Infof("block response handled successfully, chain updated from %s", msg.From)
+					log.Infof("block response handled successfully, chain updated from %s", peer.ID(msg.From))
 				}
 			}
 		}
@@ -197,7 +197,7 @@ func handleIncomingResponseBlock(blockMsg *block.BlockMessage, user *user.User) 
 			Blocks: blockMsg.Blocks,
 		}
 
-		if err := newChain.VerifyChain(); err != nil {
+		if err := newChain.VerifyChain(user.Chain.Blocks[0]); err != nil {
 			log.Errorf("received invalid chain from %s: %v", user.PeerID, err)
 			return fmt.Errorf("invalid chain received: %v", err)
 		} else {
@@ -267,7 +267,7 @@ func handleIncomingBlock(block *block.Block, user *user.User) error {
 
 	// Append to current chain
 	if block.Index == last.Index+1 && bytes.Equal(block.PreviousHash, last.Hash) {
-		if user.Chain.VerifyBlock(block, last, user.MemPool) {
+		if user.Chain.VerifyBlock(block, last) {
 			return user.Chain.AddBlock(block)
 		} else {
 			return fmt.Errorf("block failed verification: index %d", block.Index)

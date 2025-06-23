@@ -9,28 +9,31 @@ import (
 )
 
 func chainFunc(user *user.User, args []string) {
-	if len(args) != 3 {
-		fmt.Printf("Usage: chain <command> <file>\n")
+	if len(args) < 2 {
+		fmt.Printf("Usage: chain <command> [file]\n")
 		return
 	}
 
 	command := args[1]
-	file := args[2]
 
 	switch command {
 	case "save":
+		file := args[2]
+
 		if user.Chain == nil {
 			fmt.Printf("Blockchain not initialized.\n")
 			return
 		}
 
-		if err := user.Chain.Save(args[2]); err != nil {
+		if err := user.Chain.Save(file); err != nil {
 			fmt.Printf("Failed to save blockchain: %v.\n", err)
 
 		} else {
 			fmt.Printf("Blockchain saved successfully.\n")
 		}
 	case "load":
+		file := args[2]
+
 		if user.Chain != nil {
 			fmt.Printf("Blockchain already loaded. Please reset first.\n")
 			return
@@ -49,6 +52,17 @@ func chainFunc(user *user.User, args []string) {
 		user.Chain = c
 
 		subscribeToTopics(user)
+	case "request":
+		if user.Chain == nil {
+			fmt.Printf("Blockchain not initialized.\n")
+			return
+		}
+
+		if err := handler.RequestChain(user); err != nil {
+			fmt.Printf("Failed to request blocks: %v.\n", err)
+		} else {
+			fmt.Printf("Block request sent successfully.\n")
+		}
 	default:
 		fmt.Printf("Usage: chain <command> <file>\n")
 		return

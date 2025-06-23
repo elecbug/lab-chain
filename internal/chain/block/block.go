@@ -1,6 +1,7 @@
 package block
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"math/big"
@@ -21,6 +22,18 @@ type Block struct {
 	Hash         []byte
 	Difficulty   *big.Int    // Difficulty for PoW
 	MerkleRoot   *MerkleTree // Merkle root of transactions
+}
+
+// Equal compares two blocks for equality
+func (block *Block) Equal(target *Block) bool {
+	return block.Index == target.Index &&
+		bytes.Equal(block.PreviousHash, target.PreviousHash) &&
+		block.Timestamp == target.Timestamp &&
+		block.Miner == target.Miner &&
+		block.Nonce == target.Nonce &&
+		bytes.Equal(block.Hash, target.Hash) &&
+		block.Difficulty.Cmp(target.Difficulty) == 0 &&
+		block.MerkleRoot.Equal(target.MerkleRoot)
 }
 
 // PublishBlock serializes the block into a BlockMessage and publishes it to the pubsub topic
