@@ -2,6 +2,7 @@ package chain
 
 import (
 	"bytes"
+	"crypto/ecdsa"
 	"crypto/sha256"
 	"encoding/json"
 	"fmt"
@@ -11,15 +12,80 @@ import (
 	"sync"
 	"time"
 
+	"github.com/elecbug/lab-chain/internal/chain/block"
+	"github.com/elecbug/lab-chain/internal/chain/tx"
 	"github.com/elecbug/lab-chain/internal/logger"
+	"github.com/ethereum/go-ethereum/crypto"
 )
 
 // Chain represents the entire blockchain
 type Chain struct {
-	Blocks            []*Block
+	Blocks            []*block.Block
 	Mu                sync.Mutex
-	pendingBlocks     map[uint64]*Block
-	pendingForkBlocks map[uint64]*Block
+	pendingBlocks     map[uint64]*block.Block
+	pendingForkBlocks map[uint64]*block.Block
+}
+
+// VerifyChain checks the integrity of the blockchain starting from the genesis block
+func (c *Chain) VerifyChain(genesis *block.Block) error {
+	log := logger.LabChainLogger
+
+	if c.Blocks[0].Equal(genesis) {
+		log.Infof("genesis block verified successfully")
+	} else {
+		log.Warnf("genesis block mismatch")
+		return fmt.Errorf("genesis block mismatch")
+	}
+
+	tempChain := &Chain{
+		Blocks: []*block.Block{genesis},
+		Mu:     sync.Mutex{},
+	}
+
+	for i := 1; i < len(c.Blocks); i++ {
+		current := c.Blocks[i]
+		previous := c.Blocks[i-1]
+
+		if current.Index != previous.Index+1 && bytes.Equal(current.PreviousHash, previous.Hash) {
+			if tempChain.VerifyBlock(current, previous) {
+				tempChain.AddBlock(current)
+			} else {
+				log.Warnf("block %d verification failed", current.Index)
+				return fmt.Errorf("block %d verification failed", current.Index)
+			}
+		}
+	}
+
+	log.Infof("all blocks verified successfully")
+
+	return nil
+}
+
+// CreateTx creates a new transaction with the given parameters and signs it
+func (c *Chain) CreateTx(fromPriv *ecdsa.PrivateKey, to string, amount, price *big.Int, base int) (*tx.Transaction, error) {
+	log := logger.LabChainLogger
+
+	pubKey := fromPriv.Public().(*ecdsa.PublicKey)
+	fromAddr := crypto.PubkeyToAddress(*pubKey)
+
+	t := &tx.Transaction{
+		From:   fromAddr.Hex(),
+		To:     to,
+		Amount: amount,
+		Nonce:  c.GetNonce(fromAddr.Hex(), base),
+		Price:  price,
+	}
+
+	err := t.Sign(fromPriv)
+
+	if err != nil {
+		return nil, fmt.Errorf("failed to sign transaction: %v", err)
+	} else {
+		log.Infof("transaction signed successfully: %s -> %s, amount: %s, price: %s, nonce: %d",
+			t.From, t.To, t.Amount.String(), t.Price.String(), t.Nonce)
+	}
+
+	return t, nil
 }
 
 // InitBlockchain creates a new blockchain with a genesis block
@@ -27,19 +93,19 @@ func InitBlockchain(miner string) *Chain {
 	genesis := createGenesisBlock(miner)
 
 	c := &Chain{
-		Blocks:            []*Block{genesis},
-		pendingBlocks:     make(map[uint64]*Block),
-		pendingForkBlocks: make(map[uint64]*Block),
+		Blocks:            []*block.Block{genesis},
+		pendingBlocks:     make(map[uint64]*block.Block),
+		pendingForkBlocks: make(map[uint64]*block.Block),
 	}
 
 	return c
 }
 
 // createGenesisBlock creates the first block in the blockchain with a coinbase transaction
-func createGenesisBlock(to string) *Block {
-	txs := []*Transaction{
+func createGenesisBlock(to string) *block.Block {
+	txs := []*tx.Transaction{
 		{
-			From:      COINBASE,
+			From:      tx.COINBASE,
 			To:        to,
 			Amount:    big.NewInt(1000), // Initial reward
 			Nonce:     0,
@@ -50,12 +116,12 @@ func createGenesisBlock(to string) *Block {
 
 	header := fmt.Sprintf("0%x%d%s%d", []byte{}, time.Now().Unix(), to, 0)
 	headerHash := sha256.Sum256([]byte(header))
-	root := computeMerkleRoot(headerHash[:], txs)
+	root := block.ComputeMerkleRoot(headerHash[:], txs)
 
 	digest := sha256.Sum256(root.Root.Hash)
 	hash := digest[:]
 
-	return &Block{
+	return &block.Block{
 		Index:        0,
 		PreviousHash: []byte{},
 		Timestamp:    time.Now().Unix(),
@@ -68,17 +134,17 @@ func createGenesisBlock(to string) *Block {
 }
 
 // MineBlock mines a new block with the given parameters
-func (c *Chain) MineBlock(prevHash []byte, index uint64, txs []*Transaction, miner string) *Block {
+func (c *Chain) MineBlock(prevHash []byte, index uint64, txs []*tx.Transaction, miner string) *block.Block {
 	var nonce uint64
 	var hash []byte
-	var root *MerkleTree
+	var root *block.MerkleTree
 
 	timestamp := time.Now().Unix()
 	difficulty := c.calcDifficulty(30, 10)
 	reward := big.NewInt(100)
 
-	coinbaseTx := &Transaction{
-		From:      COINBASE,
+	coinbaseTx := &tx.Transaction{
+		From:      tx.COINBASE,
 		To:        miner,
 		Amount:    reward,
 		Nonce:     index,
@@ -86,7 +152,7 @@ func (c *Chain) MineBlock(prevHash []byte, index uint64, txs []*Transaction, min
 		Signature: nil,
 	}
 
-	txs = append([]*Transaction{coinbaseTx}, txs...)
+	txs = append([]*tx.Transaction{coinbaseTx}, txs...)
 
 	sort.Slice(txs, func(i, j int) bool {
 		return txs[i].Nonce < txs[j].Nonce
@@ -95,7 +161,7 @@ func (c *Chain) MineBlock(prevHash []byte, index uint64, txs []*Transaction, min
 	for {
 		header := fmt.Sprintf("%d%x%d%s%d", index, prevHash, timestamp, miner, nonce)
 		headerHash := sha256.Sum256([]byte(header))
-		root = computeMerkleRoot(headerHash[:], txs)
+		root = block.ComputeMerkleRoot(headerHash[:], txs)
 
 		digest := sha256.Sum256(root.Root.Hash)
 		hash = digest[:]
@@ -107,7 +173,7 @@ func (c *Chain) MineBlock(prevHash []byte, index uint64, txs []*Transaction, min
 		nonce++
 	}
 
-	return &Block{
+	return &block.Block{
 		Index:        index,
 		PreviousHash: prevHash,
 		Timestamp:    timestamp,
@@ -146,7 +212,7 @@ func (c *Chain) calcDifficulty(targetIntervalSec int64, windowSize int) *big.Int
 }
 
 // VerifyBlock checks if a block is valid against the previous block
-func (c *Chain) VerifyBlock(block *Block, previous *Block, mempool *Mempool) bool {
+func (c *Chain) VerifyBlock(b *block.Block, previous *block.Block) bool {
 	log := logger.LabChainLogger
 
 	// log.Infof("Verifying block: index=%d", block.Index)
@@ -154,34 +220,32 @@ func (c *Chain) VerifyBlock(block *Block, previous *Block, mempool *Mempool) boo
 	// log.Infof("Actual PreviousHash in block: %x", block.PreviousHash)
 
 	if previous == nil {
-		if block.Index != 0 {
+		if b.Index != 0 {
 			log.Warn("genesis block with wrong index")
 			return false
 		}
 		return true
 	}
 
-	if block.Index != previous.Index+1 {
-		log.Infof("block index mismatch: got %d, expected %d", block.Index, previous.Index+1)
+	if b.Index != previous.Index+1 {
+		log.Infof("block index mismatch: got %d, expected %d", b.Index, previous.Index+1)
 		return false
 	}
 
-	if !bytes.Equal(block.PreviousHash, previous.Hash) {
+	if !bytes.Equal(b.PreviousHash, previous.Hash) {
 		log.Infof("previous hash mismatch")
 		return false
 	}
 
-	hashInt := new(big.Int).SetBytes(block.Hash)
+	hashInt := new(big.Int).SetBytes(b.Hash)
 
-	if hashInt.Cmp(block.Difficulty) >= 0 {
-		log.Infof("block does not meet difficulty: hash=%x, difficulty=%x", block.Hash, block.Difficulty)
+	if hashInt.Cmp(b.Difficulty) >= 0 {
+		log.Infof("block does not meet difficulty: hash=%x, difficulty=%x", b.Hash, b.Difficulty)
 		return false
 	}
 
-	expectedNonces := make(map[string]uint64)
-
-	for i, tx := range block.Transactions {
-		ok, err := tx.VerifySignature()
+	for i, t := range b.Transactions {
+		ok, err := t.VerifySignature()
 
 		if err != nil || !ok {
 			log.Infof("tx[%d] signature invalid: %v", i, err)
@@ -189,45 +253,37 @@ func (c *Chain) VerifyBlock(block *Block, previous *Block, mempool *Mempool) boo
 		}
 	}
 
-	mempool.Sort()
-
 	tempMem := make(map[string]int, 0)
 
-	for i, tx := range block.Transactions {
-		if tx.From == COINBASE {
+	for i, t := range b.Transactions {
+		if t.From == tx.COINBASE {
 			continue
 		}
 
-		required := new(big.Int).Add(tx.Amount, tx.Price)
-		balance := c.GetBalance(tx.From)
+		required := new(big.Int).Add(t.Amount, t.Price)
+		balance := c.GetBalance(t.From)
 
 		if balance.Cmp(required) < 0 {
-			log.Infof("tx[%d] insufficient balance: from=%s, need=%s, have=%s", i, tx.From, required.String(), balance.String())
+			log.Infof("tx[%d] insufficient balance: from=%s, need=%s, have=%s", i, t.From, required.String(), balance.String())
 			return false
 		}
 
-		expected, ok := expectedNonces[tx.From]
+		expected := c.GetNonce(t.From, tempMem[t.From])
+		tempMem[t.From]++
 
-		if !ok {
-			expected = c.GetNonce(tx.From, tempMem[tx.From])
-			tempMem[tx.From]++
-		}
-
-		if tx.Nonce != expected {
-			log.Infof("tx[%d] invalid nonce: from=%s, got=%d, expected=%d", i, tx.From, tx.Nonce, expected)
+		if t.Nonce != expected {
+			log.Infof("tx[%d] invalid nonce: from=%s, got=%d, expected=%d", i, t.From, t.Nonce, expected)
 			return false
 		}
-
-		expectedNonces[tx.From] = expected + 1
 	}
 
-	header := fmt.Sprintf("%d%x%d%s%d", block.Index, block.PreviousHash, block.Timestamp, block.Miner, block.Nonce)
+	header := fmt.Sprintf("%d%x%d%s%d", b.Index, b.PreviousHash, b.Timestamp, b.Miner, b.Nonce)
 	headerHash := sha256.Sum256([]byte(header))
 
-	root := computeMerkleRoot(headerHash[:], block.Transactions)
+	root := block.ComputeMerkleRoot(headerHash[:], b.Transactions)
 
-	if block.MerkleRoot == nil || !bytes.Equal(block.MerkleRoot.Root.Hash, root.Root.Hash) {
-		log.Infof("merkle root mismatch: expected=%s, actual=%s", block.MerkleRoot.Root.Hash, root.Root.Hash)
+	if b.MerkleRoot == nil || !bytes.Equal(b.MerkleRoot.Root.Hash, root.Root.Hash) {
+		log.Infof("merkle root mismatch: expected=%s, actual=%s", b.MerkleRoot.Root.Hash, root.Root.Hash)
 		return false
 	}
 
@@ -241,7 +297,7 @@ func (c *Chain) GetBalance(address string) *big.Int {
 
 	for _, blk := range c.Blocks {
 		for _, tx := range blk.Transactions {
-			txHash := string(tx.hash())
+			txHash := string(tx.Hash())
 
 			if seen[txHash] {
 				continue
@@ -262,8 +318,8 @@ func (c *Chain) GetBalance(address string) *big.Int {
 	return balance
 }
 
-// addBlock appends a verified block to the chain
-func (c *Chain) addBlock(block *Block) error {
+// AddBlock appends a verified block to the chain
+func (c *Chain) AddBlock(block *block.Block) error {
 	c.Blocks = append(c.Blocks, block)
 	return nil
 }
@@ -298,8 +354,8 @@ func Load(path string) (*Chain, error) {
 
 	c := &Chain{
 		Blocks:            temp.Blocks,
-		pendingBlocks:     make(map[uint64]*Block),
-		pendingForkBlocks: make(map[uint64]*Block),
+		pendingBlocks:     make(map[uint64]*block.Block),
+		pendingForkBlocks: make(map[uint64]*block.Block),
 	}
 
 	return c, nil
@@ -321,7 +377,7 @@ func (c *Chain) GetNonce(address string, base int) uint64 {
 }
 
 // GetBlockByIndex returns the block at the specified index
-func (c *Chain) GetBlockByIndex(i uint64) *Block {
+func (c *Chain) GetBlockByIndex(i uint64) *block.Block {
 	c.Mu.Lock()
 	defer c.Mu.Unlock()
 
@@ -333,7 +389,7 @@ func (c *Chain) GetBlockByIndex(i uint64) *Block {
 }
 
 // GetBlockByHash searches the chain for a block with the given hash
-func (c *Chain) GetBlockByHash(hash []byte) *Block {
+func (c *Chain) GetBlockByHash(hash []byte) *block.Block {
 	for _, blk := range c.Blocks {
 		if bytes.Equal(blk.Hash, hash) {
 			return blk

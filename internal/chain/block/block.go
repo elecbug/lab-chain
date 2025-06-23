@@ -1,10 +1,12 @@
-package chain
+package block
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"math/big"
 
+	"github.com/elecbug/lab-chain/internal/chain/tx"
 	"github.com/elecbug/lab-chain/internal/logger"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"
 )
@@ -14,12 +16,24 @@ type Block struct {
 	Index        uint64 // Block height
 	PreviousHash []byte
 	Timestamp    int64
-	Transactions []*Transaction
+	Transactions []*tx.Transaction
 	Miner        string
 	Nonce        uint64
 	Hash         []byte
 	Difficulty   *big.Int    // Difficulty for PoW
 	MerkleRoot   *MerkleTree // Merkle root of transactions
+}
+
+// Equal compares two blocks for equality
+func (block *Block) Equal(target *Block) bool {
+	return block.Index == target.Index &&
+		bytes.Equal(block.PreviousHash, target.PreviousHash) &&
+		block.Timestamp == target.Timestamp &&
+		block.Miner == target.Miner &&
+		block.Nonce == target.Nonce &&
+		bytes.Equal(block.Hash, target.Hash) &&
+		block.Difficulty.Cmp(target.Difficulty) == 0 &&
+		block.MerkleRoot.Equal(target.MerkleRoot)
 }
 
 // PublishBlock serializes the block into a BlockMessage and publishes it to the pubsub topic
@@ -33,7 +47,7 @@ func (block *Block) PublishBlock(ctx context.Context, blkTopic *pubsub.Topic) er
 	}
 
 	// Serialize the BlockMessage
-	msgBytes, err := serializeBlockMessage(msg)
+	msgBytes, err := SerializeBlockMessage(msg)
 	if err != nil {
 		return fmt.Errorf("failed to serialize block message: %v", err)
 	}

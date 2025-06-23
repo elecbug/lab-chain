@@ -1,8 +1,10 @@
-package chain
+package block
 
 import (
 	"crypto/sha256"
 	"encoding/json"
+
+	"github.com/elecbug/lab-chain/internal/chain/tx"
 )
 
 // MerkleNode represents a node in the Merkle tree
@@ -15,6 +17,30 @@ type MerkleNode struct {
 // MerkleTree represents a Merkle tree structure
 type MerkleTree struct {
 	Root *MerkleNode
+}
+
+// Equal compares two Merkle trees for equality
+func (m *MerkleTree) Equal(target *MerkleTree) bool {
+	node := m.Root
+	targetNode := target.Root
+
+	var compareNodes func(a, b *MerkleNode) bool
+
+	compareNodes = func(a, b *MerkleNode) bool {
+		if a == nil && b == nil {
+			return true
+		}
+		if a == nil || b == nil {
+			return false
+		}
+		if string(a.Hash) != string(b.Hash) {
+			return false
+		}
+
+		return compareNodes(a.Left, b.Left) && compareNodes(a.Right, b.Right)
+	}
+
+	return compareNodes(node, targetNode)
 }
 
 // hashPair computes the hash of two byte slices concatenated together
@@ -59,8 +85,8 @@ func buildMerkleTree(data [][]byte) *MerkleTree {
 	return &MerkleTree{Root: nodes[0]}
 }
 
-// computeMerkleRoot computes the Merkle root of a list of transactions
-func computeMerkleRoot(header []byte, txs []*Transaction) *MerkleTree {
+// ComputeMerkleRoot computes the Merkle root of a list of transactions
+func ComputeMerkleRoot(header []byte, txs []*tx.Transaction) *MerkleTree {
 	var data = [][]byte{header}
 
 	for _, tx := range txs {

@@ -1,4 +1,4 @@
-package chain
+package tx
 
 import (
 	"context"
@@ -25,41 +25,6 @@ type Transaction struct {
 	Signature []byte   `json:"signature"` // Transaction signature
 }
 
-// CreateTx creates a new transaction with the given parameters and signs it
-func CreateTx(fromPriv *ecdsa.PrivateKey, to string, amount, price *big.Int, chain *Chain, mempool *Mempool) (*Transaction, error) {
-	log := logger.LabChainLogger
-
-	pubKey := fromPriv.Public().(*ecdsa.PublicKey)
-	fromAddr := crypto.PubkeyToAddress(*pubKey)
-
-	base := 0
-
-	for _, v := range mempool.pool {
-		if v.From == fromAddr.Hex() {
-			base++
-		}
-	}
-
-	tx := &Transaction{
-		From:   fromAddr.Hex(),
-		To:     to,
-		Amount: amount,
-		Nonce:  chain.GetNonce(fromAddr.Hex(), base),
-		Price:  price,
-	}
-
-	err := tx.sign(fromPriv)
-
-	if err != nil {
-		return nil, fmt.Errorf("failed to sign transaction: %v", err)
-	} else {
-		log.Infof("transaction signed successfully: %s -> %s, amount: %s, price: %s, nonce: %d",
-			tx.From, tx.To, tx.Amount.String(), tx.Price.String(), tx.Nonce)
-	}
-
-	return tx, nil
-}
-
 // VerifySignature verifies the transaction's signature
 func (tx *Transaction) VerifySignature() (bool, error) {
 	if tx.From == COINBASE {
@@ -67,7 +32,7 @@ func (tx *Transaction) VerifySignature() (bool, error) {
 		return true, nil
 	}
 
-	hash := tx.hash()
+	hash := tx.Hash()
 	sig := tx.Signature
 
 	if len(sig) != 65 {
@@ -89,7 +54,7 @@ func (tx *Transaction) VerifySignature() (bool, error) {
 func (tx *Transaction) PublishTx(ctx context.Context, txTopic *pubsub.Topic) error {
 	log := logger.LabChainLogger
 
-	txBs, err := serializeTx(tx)
+	txBs, err := SerializeTx(tx)
 
 	if err != nil {
 		return fmt.Errorf("failed to serialize transaction: %v", err)
@@ -110,8 +75,8 @@ func (tx *Transaction) PublishTx(ctx context.Context, txTopic *pubsub.Topic) err
 	return nil
 }
 
-// hash computes the hash of the transaction for signing and verification
-func (tx *Transaction) hash() []byte {
+// Hash computes the Hash of the transaction for signing and verification
+func (tx *Transaction) Hash() []byte {
 	// Create a clone of the transaction without the signature for hashing
 	clone := *tx
 	clone.Signature = nil
@@ -123,8 +88,8 @@ func (tx *Transaction) hash() []byte {
 }
 
 // NewTransaction creates a new transaction with the given parameters
-func (tx *Transaction) sign(privKey *ecdsa.PrivateKey) error {
-	hash := tx.hash()
+func (tx *Transaction) Sign(privKey *ecdsa.PrivateKey) error {
+	hash := tx.Hash()
 	sig, err := crypto.Sign(hash, privKey)
 
 	if err != nil {
@@ -136,8 +101,8 @@ func (tx *Transaction) sign(privKey *ecdsa.PrivateKey) error {
 	return nil
 }
 
-// serializeTx and deserialize functions for transaction
-func serializeTx(tx *Transaction) ([]byte, error) {
+// SerializeTx and deserialize functions for transaction
+func SerializeTx(tx *Transaction) ([]byte, error) {
 	jsonBytes, err := json.Marshal(tx)
 
 	if err != nil {
@@ -147,8 +112,8 @@ func serializeTx(tx *Transaction) ([]byte, error) {
 	return jsonBytes, nil
 }
 
-// deserializeTx converts JSON bytes back into a Transaction object
-func deserializeTx(data []byte) (*Transaction, error) {
+// DeserializeTx converts JSON bytes back into a Transaction object
+func DeserializeTx(data []byte) (*Transaction, error) {
 	var tx Transaction
 
 	err := json.Unmarshal(data, &tx)

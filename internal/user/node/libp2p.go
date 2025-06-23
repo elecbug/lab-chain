@@ -6,7 +6,7 @@ import (
 
 	"github.com/elecbug/lab-chain/internal/cfg"
 	"github.com/elecbug/lab-chain/internal/logger"
-	"github.com/elecbug/lab-chain/internal/logging"
+	"github.com/elecbug/lab-chain/internal/logger/logging"
 	"github.com/libp2p/go-libp2p"
 	kaddht "github.com/libp2p/go-libp2p-kad-dht"
 	pubsub "github.com/libp2p/go-libp2p-pubsub"

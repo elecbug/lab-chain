@@ -1,22 +1,49 @@
-package chain
+package mempool
 
 import (
 	"sort"
 	"sync"
+
+	"github.com/elecbug/lab-chain/internal/chain/tx"
 )
 
 // Mempool represents a memory pool for transactions
 type Mempool struct {
-	mu   sync.RWMutex
-	pool map[string]*Transaction // key: tx hash or signature
+	Mu   sync.RWMutex
+	pool map[string]*tx.Transaction // key: tx hash or signature
+}
+
+func (mp *Mempool) Add(txID string, t *tx.Transaction) bool {
+
+	if _, exists := mp.pool[txID]; !exists {
+		mp.pool[txID] = t
+
+		return true
+	} else {
+		return false
+	}
+}
+
+func (mp *Mempool) GetBase(addr string) int {
+	mp.Mu.RLock()
+	defer mp.Mu.RUnlock()
+
+	base := 0
+	for _, tx := range mp.pool {
+		if tx.From == addr {
+			base++
+		}
+	}
+
+	return base
 }
 
 // Sort sorts the transactions in the mempool by nonce
 func (mp *Mempool) Sort() {
-	mp.mu.Lock()
-	defer mp.mu.Unlock()
+	mp.Mu.Lock()
+	defer mp.Mu.Unlock()
 
-	var txs []*Transaction
+	var txs []*tx.Transaction
 	for _, tx := range mp.pool {
 		txs = append(txs, tx)
 	}
@@ -29,7 +56,7 @@ func (mp *Mempool) Sort() {
 		return txs[i].Nonce < txs[j].Nonce
 	})
 
-	mp.pool = make(map[string]*Transaction)
+	mp.pool = make(map[string]*tx.Transaction)
 	for _, tx := range txs {
 		mp.pool[string(tx.Signature)] = tx
 	}
@@ -38,18 +65,18 @@ func (mp *Mempool) Sort() {
 // NewMempool creates a new instance of Mempool
 func NewMempool() *Mempool {
 	return &Mempool{
-		pool: make(map[string]*Transaction),
+		pool: make(map[string]*tx.Transaction),
 	}
 }
 
 // PickTopTxs returns the top count transactions from the mempool sorted by price,
 // and removes them from the mempool.
-func (mp *Mempool) PickTopTxs(count int) []*Transaction {
-	mp.mu.Lock()
-	defer mp.mu.Unlock()
+func (mp *Mempool) PickTopTxs(count int) []*tx.Transaction {
+	mp.Mu.Lock()
+	defer mp.Mu.Unlock()
 
 	// Copy to slice
-	var txs []*Transaction
+	var txs []*tx.Transaction
 	for _, tx := range mp.pool {
 		txs = append(txs, tx)
 	}
@@ -72,9 +99,9 @@ func (mp *Mempool) PickTopTxs(count int) []*Transaction {
 }
 
 // Remove deletes a transaction from the mempool by hash
-func (mp *Mempool) Remove(tx *Transaction) {
-	mp.mu.Lock()
-	defer mp.mu.Unlock()
+func (mp *Mempool) Remove(tx *tx.Transaction) {
+	mp.Mu.Lock()
+	defer mp.Mu.Unlock()
 
 	delete(mp.pool, string(tx.Signature))
 }
