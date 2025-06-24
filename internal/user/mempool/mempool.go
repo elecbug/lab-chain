@@ -13,6 +13,7 @@ type Mempool struct {
 	pool map[string]*tx.Transaction // key: tx hash or signature
 }
 
+// Add adds a transaction to the mempool if it does not already exist
 func (mp *Mempool) Add(txID string, t *tx.Transaction) bool {
 
 	if _, exists := mp.pool[txID]; !exists {
@@ -24,6 +25,7 @@ func (mp *Mempool) Add(txID string, t *tx.Transaction) bool {
 	}
 }
 
+// GetBase returns the base count of transactions for a given address
 func (mp *Mempool) GetBase(addr string) int {
 	mp.Mu.RLock()
 	defer mp.Mu.RUnlock()

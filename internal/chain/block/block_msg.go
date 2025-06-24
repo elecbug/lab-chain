@@ -19,13 +19,13 @@ type BlockMessage struct {
 	Idx    uint64       // Type == "REQ"
 }
 
-// SerializeBlockMessage serializes a BlockMessage to bytes
-func SerializeBlockMessage(msg *BlockMessage) ([]byte, error) {
+// Serialize serializes a BlockMessage to bytes
+func Serialize(msg *BlockMessage) ([]byte, error) {
 	return json.Marshal(msg)
 }
 
-// DeserializeBlockMessage deserializes bytes into a BlockMessage
-func DeserializeBlockMessage(data []byte) (*BlockMessage, error) {
+// Deserialize deserializes bytes into a BlockMessage
+func Deserialize(data []byte) (*BlockMessage, error) {
 	var msg BlockMessage
 	err := json.Unmarshal(data, &msg)
 	if err != nil {

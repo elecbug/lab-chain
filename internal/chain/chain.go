@@ -20,45 +20,19 @@ import (
 
 // Chain represents the entire blockchain
 type Chain struct {
-	Blocks            []*block.Block
-	Mu                sync.Mutex
-	pendingBlocks     map[uint64]*block.Block
-	pendingForkBlocks map[uint64]*block.Block
+	Blocks []*block.Block
+	Mu     sync.Mutex
 }
 
-// VerifyChain checks the integrity of the blockchain starting from the genesis block
-func (c *Chain) VerifyChain(genesis *block.Block) error {
-	log := logger.LabChainLogger
+// InitChain creates a new blockchain with a genesis block
+func InitChain(miner string) *Chain {
+	genesis := createGenesisBlock(miner)
 
-	if c.Blocks[0].Equal(genesis) {
-		log.Infof("genesis block verified successfully")
-	} else {
-		log.Warnf("genesis block mismatch")
-		return fmt.Errorf("genesis block mismatch")
-	}
-
-	tempChain := &Chain{
+	c := &Chain{
 		Blocks: []*block.Block{genesis},
-		Mu:     sync.Mutex{},
 	}
 
-	for i := 1; i < len(c.Blocks); i++ {
-		current := c.Blocks[i]
-		previous := c.Blocks[i-1]
-
-		if current.Index != previous.Index+1 && bytes.Equal(current.PreviousHash, previous.Hash) {
-			if tempChain.VerifyBlock(current, previous) {
-				tempChain.AddBlock(current)
-			} else {
-				log.Warnf("block %d verification failed", current.Index)
-				return fmt.Errorf("block %d verification failed", current.Index)
-			}
-		}
-	}
-
-	log.Infof("all blocks verified successfully")
-
-	return nil
+	return c
 }
 
 // CreateTx creates a new transaction with the given parameters and signs it
@@ -86,51 +60,6 @@ func (c *Chain) CreateTx(fromPriv *ecdsa.PrivateKey, to string, amount, price *b
 	}
 
 	return t, nil
-}
-
-// InitBlockchain creates a new blockchain with a genesis block
-func InitBlockchain(miner string) *Chain {
-	genesis := createGenesisBlock(miner)
-
-	c := &Chain{
-		Blocks:            []*block.Block{genesis},
-		pendingBlocks:     make(map[uint64]*block.Block),
-		pendingForkBlocks: make(map[uint64]*block.Block),
-	}
-
-	return c
-}
-
-// createGenesisBlock creates the first block in the blockchain with a coinbase transaction
-func createGenesisBlock(to string) *block.Block {
-	txs := []*tx.Transaction{
-		{
-			From:      tx.COINBASE,
-			To:        to,
-			Amount:    big.NewInt(1000), // Initial reward
-			Nonce:     0,
-			Price:     big.NewInt(0),
-			Signature: nil,
-		},
-	}
-
-	header := fmt.Sprintf("0%x%d%s%d", []byte{}, time.Now().Unix(), to, 0)
-	headerHash := sha256.Sum256([]byte(header))
-	root := block.ComputeMerkleRoot(headerHash[:], txs)
-
-	digest := sha256.Sum256(root.Root.Hash)
-	hash := digest[:]
-
-	return &block.Block{
-		Index:        0,
-		PreviousHash: []byte{},
-		Timestamp:    time.Now().Unix(),
-		Transactions: txs,
-		Miner:        to,
-		Nonce:        0,
-		Hash:         hash,
-		MerkleRoot:   root,
-	}
 }
 
 // MineBlock mines a new block with the given parameters
@@ -186,33 +115,14 @@ func (c *Chain) MineBlock(prevHash []byte, index uint64, txs []*tx.Transaction, 
 	}
 }
 
-// calcDifficulty calculates the new difficulty based on recent blocks
-func (c *Chain) calcDifficulty(targetIntervalSec int64, windowSize int) *big.Int {
-	n := len(c.Blocks)
-	if n <= windowSize {
-		return big.NewInt(1).Lsh(big.NewInt(1), 240)
-	}
-
-	latest := c.Blocks[n-1]
-	past := c.Blocks[n-1-windowSize]
-
-	actualTime := latest.Timestamp - past.Timestamp
-	expectedTime := targetIntervalSec * int64(windowSize)
-
-	ratioNum := big.NewInt(actualTime)
-	ratioDen := big.NewInt(expectedTime)
-	newDifficulty := new(big.Int).Mul(latest.Difficulty, ratioNum)
-	newDifficulty.Div(newDifficulty, ratioDen)
-
-	if newDifficulty.Cmp(big.NewInt(1)) < 0 {
-		newDifficulty = big.NewInt(1)
-	}
-
-	return newDifficulty
+// AddBlock appends a verified block to the chain
+func (c *Chain) AddBlock(block *block.Block) error {
+	c.Blocks = append(c.Blocks, block)
+	return nil
 }
 
-// VerifyBlock checks if a block is valid against the previous block
-func (c *Chain) VerifyBlock(b *block.Block, previous *block.Block) bool {
+// VerifyNewBlock checks if a block is valid against the previous block
+func (c *Chain) VerifyNewBlock(b *block.Block, previous *block.Block) bool {
 	log := logger.LabChainLogger
 
 	// log.Infof("Verifying block: index=%d", block.Index)
@@ -290,37 +200,38 @@ func (c *Chain) VerifyBlock(b *block.Block, previous *block.Block) bool {
 	return true
 }
 
-// GetBalance calculates the balance of a given address
-func (c *Chain) GetBalance(address string) *big.Int {
-	balance := new(big.Int)
-	seen := make(map[string]bool)
+// VerifyChain checks the integrity of the blockchain starting from the genesis block
+func (c *Chain) VerifyChain(genesis *block.Block) error {
+	log := logger.LabChainLogger
 
-	for _, blk := range c.Blocks {
-		for _, tx := range blk.Transactions {
-			txHash := string(tx.Hash())
+	if c.Blocks[0].Equal(genesis) {
+		log.Infof("genesis block verified successfully")
+	} else {
+		log.Warnf("genesis block mismatch")
+		return fmt.Errorf("genesis block mismatch")
+	}
 
-			if seen[txHash] {
-				continue
-			}
+	tempChain := &Chain{
+		Blocks: []*block.Block{genesis},
+		Mu:     sync.Mutex{},
+	}
 
-			seen[txHash] = true
+	for i := 1; i < len(c.Blocks); i++ {
+		current := c.Blocks[i]
+		previous := c.Blocks[i-1]
 
-			if tx.From == address {
-				balance.Sub(balance, tx.Amount)
-			}
-
-			if tx.To == address {
-				balance.Add(balance, tx.Amount)
+		if current.Index != previous.Index+1 && bytes.Equal(current.PreviousHash, previous.Hash) {
+			if tempChain.VerifyNewBlock(current, previous) {
+				tempChain.AddBlock(current)
+			} else {
+				log.Warnf("block %d verification failed", current.Index)
+				return fmt.Errorf("block %d verification failed", current.Index)
 			}
 		}
 	}
 
-	return balance
-}
+	log.Infof("all blocks verified successfully")
 
-// AddBlock appends a verified block to the chain
-func (c *Chain) AddBlock(block *block.Block) error {
-	c.Blocks = append(c.Blocks, block)
 	return nil
 }
 
@@ -353,9 +264,7 @@ func Load(path string) (*Chain, error) {
 	}
 
 	c := &Chain{
-		Blocks:            temp.Blocks,
-		pendingBlocks:     make(map[uint64]*block.Block),
-		pendingForkBlocks: make(map[uint64]*block.Block),
+		Blocks: temp.Blocks,
 	}
 
 	return c, nil
@@ -396,11 +305,90 @@ func (c *Chain) GetBlockByHash(hash []byte) *block.Block {
 		}
 	}
 
-	for _, blk := range c.pendingForkBlocks {
-		if bytes.Equal(blk.Hash, hash) {
-			return blk
+	return nil
+}
+
+// GetBalance calculates the balance of a given address
+func (c *Chain) GetBalance(address string) *big.Int {
+	balance := new(big.Int)
+	seen := make(map[string]bool)
+
+	for _, blk := range c.Blocks {
+		for _, tx := range blk.Transactions {
+			txHash := string(tx.Hash())
+
+			if seen[txHash] {
+				continue
+			}
+
+			seen[txHash] = true
+
+			if tx.From == address {
+				balance.Sub(balance, tx.Amount)
+			}
+
+			if tx.To == address {
+				balance.Add(balance, tx.Amount)
+			}
 		}
 	}
 
-	return nil
+	return balance
+}
+
+// createGenesisBlock creates the first block in the blockchain with a coinbase transaction
+func createGenesisBlock(to string) *block.Block {
+	txs := []*tx.Transaction{
+		{
+			From:      tx.COINBASE,
+			To:        to,
+			Amount:    big.NewInt(1000), // Initial reward
+			Nonce:     0,
+			Price:     big.NewInt(0),
+			Signature: nil,
+		},
+	}
+
+	header := fmt.Sprintf("0%x%d%s%d", []byte{}, time.Now().Unix(), to, 0)
+	headerHash := sha256.Sum256([]byte(header))
+	root := block.ComputeMerkleRoot(headerHash[:], txs)
+
+	digest := sha256.Sum256(root.Root.Hash)
+	hash := digest[:]
+
+	return &block.Block{
+		Index:        0,
+		PreviousHash: []byte{},
+		Timestamp:    time.Now().Unix(),
+		Transactions: txs,
+		Miner:        to,
+		Nonce:        0,
+		Hash:         hash,
+		MerkleRoot:   root,
+	}
+}
+
+// calcDifficulty calculates the new difficulty based on recent blocks
+func (c *Chain) calcDifficulty(targetIntervalSec int64, windowSize int) *big.Int {
+	n := len(c.Blocks)
+	if n <= windowSize {
+		return big.NewInt(1).Lsh(big.NewInt(1), 240)
+	}
+
+	latest := c.Blocks[n-1]
+	past := c.Blocks[n-1-windowSize]
+
+	actualTime := latest.Timestamp - past.Timestamp
+	expectedTime := targetIntervalSec * int64(windowSize)
+
+	ratioNum := big.NewInt(actualTime)
+	ratioDen := big.NewInt(expectedTime)
+	newDifficulty := new(big.Int).Mul(latest.Difficulty, ratioNum)
+	newDifficulty.Div(newDifficulty, ratioDen)
+
+	if newDifficulty.Cmp(big.NewInt(1)) < 0 {
+		newDifficulty = big.NewInt(1)
+	}
+
+	return newDifficulty
 }

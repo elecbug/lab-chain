@@ -30,7 +30,7 @@ func mineFunc(user *user.User, args []string) {
 		b := user.Chain.MineBlock(last.Hash, last.Index+1, txs, user.CurrentAddress.Hex())
 		user.Chain.Blocks = append(user.Chain.Blocks, b)
 
-		err := b.PublishBlock(user.Context, user.BlockTopic)
+		err := b.Publish(user.Context, user.BlockTopic)
 
 		if err != nil {
 			fmt.Printf("Failed to publish block: %v.\n", err)
@@ -57,7 +57,7 @@ func genesisFunc(user *user.User) {
 		return
 	}
 
-	user.Chain = chain.InitBlockchain(user.CurrentAddress.Hex())
+	user.Chain = chain.InitChain(user.CurrentAddress.Hex())
 
 	fmt.Printf("Genesis block created successfully: index %d, miner %s, nonce %d, hash %x.\n",
 		user.Chain.Blocks[0].Index,
@@ -67,7 +67,7 @@ func genesisFunc(user *user.User) {
 	)
 
 	b := user.Chain.Blocks[0]
-	err := b.PublishBlock(user.Context, user.BlockTopic)
+	err := b.Publish(user.Context, user.BlockTopic)
 
 	if err != nil {
 		fmt.Printf("Failed to publish block: %v.\n", err)

@@ -55,7 +55,7 @@ func txFunc(user *user.User, args []string) {
 			tx.From, tx.To, tx.Amount.String(), tx.Price.String())
 	}
 
-	if err := tx.PublishTx(user.Context, user.TxTopic); err != nil {
+	if err := tx.Publish(user.Context, user.TxTopic); err != nil {
 		fmt.Printf("Failed to publish transaction: %v.\n", err)
 
 	} else {

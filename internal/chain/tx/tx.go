@@ -50,11 +50,11 @@ func (tx *Transaction) VerifySignature() (bool, error) {
 	return strings.EqualFold(derivedAddr.Hex(), tx.From), nil
 }
 
-// PublishTx publishes a transaction to the specified pubsub topic
-func (tx *Transaction) PublishTx(ctx context.Context, txTopic *pubsub.Topic) error {
+// Publish publishes a transaction to the specified pubsub topic
+func (tx *Transaction) Publish(ctx context.Context, txTopic *pubsub.Topic) error {
 	log := logger.LabChainLogger
 
-	txBs, err := SerializeTx(tx)
+	txBs, err := Serialize(tx)
 
 	if err != nil {
 		return fmt.Errorf("failed to serialize transaction: %v", err)
@@ -101,8 +101,8 @@ func (tx *Transaction) Sign(privKey *ecdsa.PrivateKey) error {
 	return nil
 }
 
-// SerializeTx and deserialize functions for transaction
-func SerializeTx(tx *Transaction) ([]byte, error) {
+// Serialize and deserialize functions for transaction
+func Serialize(tx *Transaction) ([]byte, error) {
 	jsonBytes, err := json.Marshal(tx)
 
 	if err != nil {
@@ -112,8 +112,8 @@ func SerializeTx(tx *Transaction) ([]byte, error) {
 	return jsonBytes, nil
 }
 
-// DeserializeTx converts JSON bytes back into a Transaction object
-func DeserializeTx(data []byte) (*Transaction, error) {
+// Deserialize converts JSON bytes back into a Transaction object
+func Deserialize(data []byte) (*Transaction, error) {
 	var tx Transaction
 
 	err := json.Unmarshal(data, &tx)

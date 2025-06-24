@@ -13,6 +13,7 @@ import (
 	"github.com/libp2p/go-libp2p/core/crypto"
 )
 
+// InitGeneralNode initializes the general node setup with libp2p, DHT, and GossipSub
 func InitGeneralNode(ctx context.Context, cfg cfg.Config, priv crypto.PrivKey) error {
 	log := logger.AppLogger
 
@@ -66,6 +67,7 @@ func InitGeneralNode(ctx context.Context, cfg cfg.Config, priv crypto.PrivKey) e
 	return nil
 }
 
+// InitBootNode initializes the boot node setup with libp2p, DHT
 func InitBootNode(ctx context.Context, cfg cfg.Config, priv crypto.PrivKey) error {
 	log := logger.AppLogger
 
