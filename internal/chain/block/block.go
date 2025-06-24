@@ -36,8 +36,8 @@ func (block *Block) Equal(target *Block) bool {
 		block.MerkleRoot.Equal(target.MerkleRoot)
 }
 
-// PublishBlock serializes the block into a BlockMessage and publishes it to the pubsub topic
-func (block *Block) PublishBlock(ctx context.Context, blkTopic *pubsub.Topic) error {
+// Publish serializes the block into a BlockMessage and publishes it to the pubsub topic
+func (block *Block) Publish(ctx context.Context, blkTopic *pubsub.Topic) error {
 	log := logger.LabChainLogger
 
 	// Wrap the block into a BlockMessage
@@ -47,7 +47,7 @@ func (block *Block) PublishBlock(ctx context.Context, blkTopic *pubsub.Topic) er
 	}
 
 	// Serialize the BlockMessage
-	msgBytes, err := SerializeBlockMessage(msg)
+	msgBytes, err := Serialize(msg)
 	if err != nil {
 		return fmt.Errorf("failed to serialize block message: %v", err)
 	}

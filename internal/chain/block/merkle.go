@@ -43,6 +43,19 @@ func (m *MerkleTree) Equal(target *MerkleTree) bool {
 	return compareNodes(node, targetNode)
 }
 
+// ComputeMerkleRoot computes the Merkle root of a list of transactions
+func ComputeMerkleRoot(header []byte, txs []*tx.Transaction) *MerkleTree {
+	var data = [][]byte{header}
+
+	for _, tx := range txs {
+		b, _ := json.Marshal(tx)
+		data = append(data, b)
+	}
+
+	tree := buildMerkleTree(data)
+	return tree
+}
+
 // hashPair computes the hash of two byte slices concatenated together
 func hashPair(left, right []byte) []byte {
 	h := sha256.New()
@@ -83,17 +96,4 @@ func buildMerkleTree(data [][]byte) *MerkleTree {
 	}
 
 	return &MerkleTree{Root: nodes[0]}
-}
-
-// ComputeMerkleRoot computes the Merkle root of a list of transactions
-func ComputeMerkleRoot(header []byte, txs []*tx.Transaction) *MerkleTree {
-	var data = [][]byte{header}
-
-	for _, tx := range txs {
-		b, _ := json.Marshal(tx)
-		data = append(data, b)
-	}
-
-	tree := buildMerkleTree(data)
-	return tree
 }
